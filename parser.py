@@ -19,7 +19,7 @@ class MiniScriptLexer(Lexer):
         VAR,
         ASSIGN,
     }
-    literals = {'(', ')', '{', '}', '[', ']', ';', '!'}
+    literals = {'(', ')', '{', '}', '[', ']', ';', '!', ','}
 
     @_(r'\n+')
     def ignore_newline(self, t):
@@ -30,7 +30,6 @@ class MiniScriptLexer(Lexer):
     ignore_multicomment = r'\/\*([^*]|\*[^/])*\*\/'
 
     NULL = r'null'
-
     @_(r'\d+')
     def NUMBER(self, t):
         t.value = int(t.value)
@@ -49,17 +48,12 @@ class MiniScriptLexer(Lexer):
     ID['else'] = ELSE
     ID['while'] = WHILE
     ID['for'] = FOR
-    ID['var'] = VAR
-    PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
-    AND, OR = '&&', r'\|\|'
-    EQ, NEQ, LT, LE, GT, GE = '==', '!=', '<', '<=', '>', '>='
-    ASSIGN = '='
-
     def error(self, t):
         print(
             f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...'
         )
         self.index += 1
+
 
     @staticmethod
     def find_column(text, token):
@@ -101,42 +95,41 @@ class MiniScriptParser(Parser):
         ('left', TIMES, DIV),
     )
 
-    @_('stmt prog')
+    @_('stmt_list')
     def prog(self, p):
-        return  # TODO
+        return p[0]
 
-    @_('func prog')
-    def prog(self, p):
-        return # TODO
-    
-    @_('empty')
-    def prog(self, p):
-        pass # TODO
-
-    @_('stmt stmt_list')
+    @_('stmt_list stmt')
     def stmt_list(self, p):
-        return [p.stmt] + p.stmt_list
+        if p.stmt is not None:
+            p.stmt_list.append(p.stmt)
+        return p.stmt_list # [p.stmt] + p.stmt_list
     
     @_('empty')
     def stmt_list(self, p):
-        return []
+        return StmtList()
     
-    # TODO
-    @_('FUNCTION ID "(" args ")" "{" stmt_list "}"')
+    @_('func')
+    def stmt(self, p):
+        return p[0]
+
+    @_('FUNCTION ID "(" args ")" block')
     def func(self, p):
-        pass # TODO
+        return FunctionDef(p.ID, p.args, p.block)
 
-    @_('ID args2')
+    @_('args2 ID')
     def args(self, p):
-        return [p.ID] + p.args2
+        p.args2.append(p.ID)
+        return p.args2
 
     @_('empty')
     def args(self, p):
         return []
     
-    @_(', ID args2')
+    @_('args2 ID ","')
     def args2(self, p):
-        return [p.ID] + p.args2
+        p.args2.append(p.ID)
+        return p.args2
     
     @_('empty')
     def args2(self, p):
@@ -144,7 +137,7 @@ class MiniScriptParser(Parser):
 
     @_('expr ";"')
     def stmt(self, p):
-        return
+        return p.expr
     
     @_('empty ";"')
     def stmt(self, p):
@@ -156,27 +149,27 @@ class MiniScriptParser(Parser):
 
     @_('ifthenelse')
     def stmt(self, p):
-        pass # TODO
+        pass p[0]
 
     @_('whileloop')
     def stmt(self, p):
-        pass # TODO
+        return p[0]
 
     @_('IF "(" expr ")" stmt ELSE stmt')
     def ifthenelse(self, p):
-        pass # TODO
+        return If(p.expr, p.stmt0, p.stmt1)
 
     @_('IF "(" expr ")" stmt')
     def ifthenelse(self, p):
-        pass # TODO
+        return If(p.expr, p.stmt)
     
     @_('"{" stmt_list "}"')
     def block(self, p):
         return p.stmt_list
     
-    @_('WHILE "(" expr ")" block')
-    def whileloop(self, p);
-        pass # TODO
+    @_('WHILE "(" expr ")" stmt')
+    def whileloop(self, p):
+        return While(p.expr, p.stmt)
 
     @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
     def expr(self, p):
@@ -188,7 +181,7 @@ class MiniScriptParser(Parser):
     
     @_('"!" expr')
     def expr(self, p):
-        pass # TODO
+        return Not(p.expr)
 
     @_('NULL')
     def expr(self, p):
@@ -214,6 +207,9 @@ class MiniScriptParser(Parser):
     def empty(self, p):
         return []
 
+    def error(self, p):
+        print(f'syntax error at {p}')
+        return p
 
 if __name__ == '__main__':
     lexer = MiniScriptLexer()
@@ -225,7 +221,7 @@ if __name__ == '__main__':
             print(repr(code))
         except EOFError:
             break
-    print(list(lexer.tokenize(code)))
+    print(list(map(lambda x: (x.type, x.value), lexer.tokenize(code))))
     tree = parser.parse(lexer.tokenize(code))
     print(tree)
     print(repr(tree))
