@@ -149,7 +149,7 @@ class MiniScriptParser(Parser):
 
     @_('ifthenelse')
     def stmt(self, p):
-        pass p[0]
+        return p[0]
 
     @_('whileloop')
     def stmt(self, p):

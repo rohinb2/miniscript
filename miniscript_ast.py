@@ -150,6 +150,24 @@ class FunctionCall(Expr):
         pass
 
 
+class Assign(Stmt):
+    def __init__(self, var: Expr, value: Expr):
+        self.var = var
+        self.value = value
+
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'
+
+
+class VarDecl(Stmt):
+    def __init__(self, name: str, initial_value: Optional[Expr] = None):
+        self.name = name
+        self.value = initial_value
+
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'
+
+
 class Named(Expr):
     def __init__(self, name: str):
         self.name = name
