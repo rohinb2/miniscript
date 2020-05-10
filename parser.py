@@ -9,7 +9,18 @@ class MiniScriptLexer(Lexer):
         NUMBER,
         STRING,
         BOOLEAN,
-        PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE,
+        PLUS,
+        MINUS,
+        TIMES,
+        DIV,
+        AND,
+        OR,
+        EQ,
+        NEQ,
+        LT,
+        LE,
+        GT,
+        GE,
         ID,
         IF,
         ELSE,
@@ -30,6 +41,7 @@ class MiniScriptLexer(Lexer):
     ignore_multicomment = r'\/\*([^*]|\*[^/])*\*\/'
 
     NULL = r'null'
+
     @_(r'\d+')
     def NUMBER(self, t):
         t.value = int(t.value)
@@ -48,12 +60,18 @@ class MiniScriptLexer(Lexer):
     ID['else'] = ELSE
     ID['while'] = WHILE
     ID['for'] = FOR
+    ID['var'] = VAR
+
+    PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
+    AND, OR = '&&', r'\|\|'
+    EQ, NEQ, LT, LE, GT, GE = '==', '!=', '<', '<=', '>', '>='
+    ASSIGN = '='
+
     def error(self, t):
         print(
             f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...'
         )
         self.index += 1
-
 
     @staticmethod
     def find_column(text, token):
@@ -103,12 +121,12 @@ class MiniScriptParser(Parser):
     def stmt_list(self, p):
         if p.stmt is not None:
             p.stmt_list.append(p.stmt)
-        return p.stmt_list # [p.stmt] + p.stmt_list
-    
+        return p.stmt_list  # [p.stmt] + p.stmt_list
+
     @_('empty')
     def stmt_list(self, p):
         return StmtList()
-    
+
     @_('func')
     def stmt(self, p):
         return p[0]
@@ -125,12 +143,12 @@ class MiniScriptParser(Parser):
     @_('empty')
     def args(self, p):
         return []
-    
+
     @_('args2 ID ","')
     def args2(self, p):
         p.args2.append(p.ID)
         return p.args2
-    
+
     @_('empty')
     def args2(self, p):
         return []
@@ -138,11 +156,15 @@ class MiniScriptParser(Parser):
     @_('expr ";"')
     def stmt(self, p):
         return p.expr
-    
+
     @_('empty ";"')
     def stmt(self, p):
         return
     
+    @_('name "=" expr ";"')
+    def stmt(self, p):
+        return Assign(p.name, p.expr)
+
     @_('block')
     def stmt(self, p):
         return [p.stmt]
@@ -162,23 +184,25 @@ class MiniScriptParser(Parser):
     @_('IF "(" expr ")" stmt')
     def ifthenelse(self, p):
         return If(p.expr, p.stmt)
-    
+
     @_('"{" stmt_list "}"')
     def block(self, p):
         return p.stmt_list
-    
+
     @_('WHILE "(" expr ")" stmt')
     def whileloop(self, p):
         return While(p.expr, p.stmt)
 
-    @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
+    @_(*(f'expr {op} expr'
+         for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE])
+       )
     def expr(self, p):
         return BinOp(p[1], p.expr0, p.expr1)
 
     @_('"(" expr ")"')
     def expr(self, p):
         return p.expr
-    
+
     @_('"!" expr')
     def expr(self, p):
         return Not(p.expr)
@@ -202,14 +226,25 @@ class MiniScriptParser(Parser):
     @_('BOOLEAN')
     def expr(self, p):
         return Boolean(p.BOOLEAN)
+    
+    @_('name "." ID')
+    def name(self, p):
+        pass
+
+    @_('ID')
+    def name(self, p):
+        pass
 
     @_('')
     def empty(self, p):
         return []
 
-    def error(self, p):
+    def _error(self, p):
         print(f'syntax error at {p}')
+        next(self.tokens, None)
+        self.restart()
         return p
+
 
 if __name__ == '__main__':
     lexer = MiniScriptLexer()
