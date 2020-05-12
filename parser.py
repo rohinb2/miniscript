@@ -1,10 +1,13 @@
-from sly import Lexer, Parser
+# type: ignore[name-defined]
+# mypy: allow-redefinition
+from sly import Lexer, Parser  #type: ignore
 
 from miniscript_ast import *
 
 
 class MiniScriptLexer(Lexer):
     tokens = {
+        UNDEFINED,
         NULL,
         NUMBER,
         STRING,
@@ -30,7 +33,8 @@ class MiniScriptLexer(Lexer):
         VAR,
         ASSIGN,
     }
-    literals = {'(', ')', '{', '}', '[', ']', ';', '!', ','}
+
+    literals = {'(', ')', '{', '}', '[', ']', ';', '!', ',', '.'}
 
     @_(r'\n+')
     def ignore_newline(self, t):
@@ -39,8 +43,6 @@ class MiniScriptLexer(Lexer):
     ignore_whitespace = r'\s'
     ignore_comments = r'//.*'
     ignore_multicomment = r'\/\*([^*]|\*[^/])*\*\/'
-
-    NULL = r'null'
 
     @_(r'\d+')
     def NUMBER(self, t):
@@ -61,6 +63,8 @@ class MiniScriptLexer(Lexer):
     ID['while'] = WHILE
     ID['for'] = FOR
     ID['var'] = VAR
+    ID['null'] = NULL
+    ID['undefined'] = UNDEFINED
 
     PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
     AND, OR = '&&', r'\|\|'
@@ -161,9 +165,9 @@ class MiniScriptParser(Parser):
     def stmt(self, p):
         return Undefined()
 
-    @_('name "=" expr ";"')
+    @_('expr ASSIGN expr ";"')
     def stmt(self, p):
-        return Assign(p.name, p.expr)
+        return Assign(p.expr0, p.expr1)
 
     @_('block')
     def stmt(self, p):
@@ -221,7 +225,7 @@ class MiniScriptParser(Parser):
 
     @_('STRING')
     def expr(self, p):
-        return String()
+        return String(p.STRING)
 
     @_('BOOLEAN')
     def expr(self, p):
@@ -229,7 +233,7 @@ class MiniScriptParser(Parser):
 
     @_('expr "." ID')
     def expr(self, p):
-        return Attribute(p.expr, p.id)
+        return Attribute(p.expr, p.ID)
 
     @_('ID')
     def expr(self, p):
@@ -241,7 +245,7 @@ class MiniScriptParser(Parser):
 
     @_('expr')
     def expr_list(self, p):
-        return [p]
+        return [p.expr]
 
     @_('expr_list "," expr')
     def expr_list(self, p):
