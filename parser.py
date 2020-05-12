@@ -125,7 +125,7 @@ class MiniScriptParser(Parser):
 
     @_('empty')
     def stmt_list(self, p):
-        return StmtList()
+        return []
 
     @_('func')
     def stmt(self, p):
@@ -159,8 +159,8 @@ class MiniScriptParser(Parser):
 
     @_('empty ";"')
     def stmt(self, p):
-        return
-    
+        return Undefined()
+
     @_('name "=" expr ";"')
     def stmt(self, p):
         return Assign(p.name, p.expr)
@@ -211,6 +211,10 @@ class MiniScriptParser(Parser):
     def expr(self, p):
         return Null
 
+    @_('UNDEFINED')
+    def expr(self, p):
+        return Undefined()
+
     @_('NUMBER')
     def expr(self, p):
         return Number(p.NUMBER)
@@ -219,21 +223,34 @@ class MiniScriptParser(Parser):
     def expr(self, p):
         return String()
 
-    @_('ID')
-    def expr(self, p):
-        return Symbol(p[0])
-
     @_('BOOLEAN')
     def expr(self, p):
         return Boolean(p.BOOLEAN)
-    
-    @_('name "." ID')
-    def name(self, p):
-        pass
+
+    @_('expr "." ID')
+    def expr(self, p):
+        return Attribute(p.expr, p.id)
 
     @_('ID')
-    def name(self, p):
-        pass
+    def expr(self, p):
+        return Name(p.ID)
+
+    @_('expr "(" expr_list ")"')
+    def expr(self, p):
+        return Call(p.expr, p.expr_list)
+
+    @_('expr')
+    def expr_list(self, p):
+        return [p]
+
+    @_('expr_list "," expr')
+    def expr_list(self, p):
+        p.expr_list.append(p)
+        return p.expr_list
+
+    @_('empty')
+    def expr_list(self, p):
+        return []
 
     @_('')
     def empty(self, p):

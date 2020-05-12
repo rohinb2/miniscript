@@ -36,14 +36,6 @@ class Stmt(AST):
     pass
 
 
-class StmtList(list):
-    def __str__(self):
-        return '\n'.join(map(str, self))
-
-    def __repr__(self):
-        return f'{type(self).__name__}({list.__repr__(self)})'
-
-
 class Expr(Stmt):
     def __str__(self) -> str:
         return self.str_prec(0) + ';'
@@ -145,11 +137,6 @@ class Not(Expr):
         return f'!{self.expr.str_prec(BinOp.precedence_of("!"))}'
 
 
-class FunctionCall(Expr):
-    def __init__(self, func: Expr, args: Sequence[Expr]):
-        pass
-
-
 class Assign(Stmt):
     def __init__(self, var: Expr, value: Expr):
         self.var = var
@@ -166,23 +153,6 @@ class VarDecl(Stmt):
 
     def __repr__(self):
         return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'
-
-
-class Named(Expr):
-    def __init__(self, name: str):
-        self.name = name
-
-    def __repr__(self):
-        return f'{type(self).__name__}({repr(self.name)})'
-
-
-class MemberAccess(Expr):
-    def __init__(self, name: str, obj: Expr):
-        self.name = name
-        self.object = obj
-
-    def __repr__(self):
-        return f'{type(self).__name__}({repr(self.name)}, {repr(self.object)})'
 
 
 class Literal(Expr):
@@ -214,23 +184,46 @@ class Number(Literal):
         v.visit_Number(self)
 
 
-class Null(Literal):
+class Singleton(Literal):
     def __init__(self):
         Literal.__init__(self, None)
 
-    def visit(self, v: NodeVisitor):
-        v.visit_Null(self)
-
-    def str_prec(self, prec):
-        return "null"
+    def __repr__(self):
+        return f'{type(self).__name__}()'
 
 
-class Symbol(Expr):
+class Null(Singleton):
+    pass
+
+
+class Undefined(Singleton):
+    pass
+
+
+class Name(Expr):
     def __init__(self, name):
         self.name = name
 
     def visit(self, v: NodeVisitor):
         v.visit_String(self)
+
+
+class Attribute(Expr):
+    def __init__(self, value: Expr, attr: str):
+        self.value = value
+        self.attr = attr
+
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.value)}, {repr(self.attr)})'
+
+
+class Call(Expr):
+    def __init__(self, func: Expr, args: Sequence[Expr]):
+        self.func = func
+        self.args = args
+
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.func)}, {repr(self.args)})'
 
 
 class FunctionDef(Stmt):
