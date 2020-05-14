@@ -1,13 +1,19 @@
 from typing import Optional, Sequence, Callable, TypeVar
 T = TypeVar('T')
 
+__all__ = {
+    NodeVisitor, Ast, Attribute, BinOp, Boolean, Call, Expr, FunctionDef, If,
+    Literal, Name, NodeVisitor, Not, Null, Number, Sequence, Singleton, Stmt,
+    String, Undefined, VarDecl, While
+}
+
 
 class NodeVisitor:
     """Visitor class for ast nodes.
     Subclasses should implement visit_<Name> for any ast nodes they are interested in.
     The fallback `generic_visit` traverses the whole tree and recursively 
     """
-    def visit(self, tree: 'AST'):
+    def visit(self, tree: 'Ast'):
         """Calls the appropriate `visit_<Name>` method for `tree`.
         If no suitable visitor method is found this calls `generic_visit`
         """
@@ -16,11 +22,11 @@ class NodeVisitor:
         visitor = getattr(self, method, self.generic_visit)
         return visitor(tree)
 
-    def generic_visit(self, tree: 'AST'):
+    def generic_visit(self, tree: 'Ast'):
         """Generic visitor method.
         """
         for field, value in tree._locals:
-            if isinstance(tree, AST):
+            if isinstance(tree, Ast):
                 self.visit(getattr(self, field))
 
     @staticmethod
@@ -30,7 +36,7 @@ class NodeVisitor:
             if isinstance(field, list):
                 for f in field:
                     self.visit(f)
-            elif isinstance(field, AST):
+            elif isinstance(field, Ast):
                 self.visit(field)
 
 
@@ -44,7 +50,6 @@ class AstMeta(type):
         def decorate(f):
             f.arg_locals = f.__code__.co_varnames[1:f.__code__.co_argcount]
             return f
-
         return decorate
 
     @classmethod
@@ -58,7 +63,7 @@ class AstMeta(type):
         return cls
 
 
-class AST(metaclass=AstMeta):
+class Ast(metaclass=AstMeta):
     _locals: Sequence[str]
 
     @node
@@ -68,14 +73,19 @@ class AST(metaclass=AstMeta):
     def __repr__(self):
         return f'{type(self).__name__}({ ", ".join(repr(getattr(self, l)) for l in self._locals) })'
 
+    def __eq__(self, other):
+        for s,o in zip(self._locals, other._locals):
+            if s != o: return False
+        return True
 
-class Stmt(AST):
+
+class Stmt(Ast):
     pass
 
 
 class Expr(Stmt):
-    def __str__(self) -> str:
-        return self.str_prec(0) + ';'
+    #def __str__(self) -> str:
+    #    return self.str_prec(0) + ';'
 
     def str_prec(self, precedence: int) -> str:
         return "Expr"
@@ -96,10 +106,10 @@ class If(Stmt):
             elstring = f', {repr(self.els)}'
         return f'{type(self).__name__}({repr(self.cond)}, {repr(self.then)}{elstring})'
 
-    def __str__(self):
-        ifstring = r'if ({self.cond}) {\nself.then}'
-        if self.els is not None:
-            ifstring += r' else {self.els}'
+    # def __str__(self):
+    #     ifstring = r'if ({self.cond}) {\nself.then}'
+    #     if self.els is not None:
+    #         ifstring += r' else {self.els}'
 
 
 class While(Stmt):
@@ -111,9 +121,9 @@ class While(Stmt):
 
 class BinOp(Expr):
     @node
-    def __init__(self, op: str, left: AST, right: AST):
-        self.left: AST = left
-        self.right: AST = right
+    def __init__(self, op: str, left: Ast, right: Ast):
+        self.left: Ast = left
+        self.right: Ast = right
         self.op: str = op
 
     _prec = {

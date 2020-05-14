@@ -1,6 +1,7 @@
+# ignore some type checking problems with metaclasses used in sly
 # type: ignore[name-defined]
 # mypy: allow-redefinition
-from sly import Lexer, Parser  #type: ignore
+from sly import Lexer, Parser #type: ignore
 
 from miniscript_ast import *
 
