@@ -34,8 +34,13 @@ class TUndefined(Type):
     def string(self):
         return 'undefined'
 
+
+class TNull(Type):
+    def string(self):
+        return 'null'
+
     def number(self):
-        return Number(float('nan'))
+        return Number(0)
 
 
 Code = ast.Ast
@@ -90,7 +95,13 @@ class TArray(Type):
         if len(self.values) == 1:
             return self.values[0].number()
         else:
-            return Undefined()
+            return super().number()
+
+    def string(self):
+        if not self.values: return TString('')
+        elif len(self.values == 1): return self.values[0].string()
+        else:
+            return f'[{", ".join(map(lambda x: x.string(), self.values))}]'
 
 
 class Scope:
