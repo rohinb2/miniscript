@@ -1,11 +1,11 @@
 from typing import Optional, Sequence, Callable, TypeVar
 T = TypeVar('T')
 
-__all__ = {
-    NodeVisitor, Ast, Attribute, BinOp, Boolean, Call, Expr, FunctionDef, If,
-    Literal, Name, NodeVisitor, Not, Null, Number, Sequence, Singleton, Stmt,
-    String, Undefined, VarDecl, While
-}
+__all__ = [
+    'NodeVisitor', 'Ast', 'Attribute', 'BinOp', 'Boolean', 'Call', 'Expr', 'FunctionDef', 'If',
+    'Literal', 'Name', 'Array', 'Index', 'NodeVisitor', 'UnaryOp', 'Null', 'Number', 'Sequence',
+    'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return'
+]
 
 
 class NodeVisitor:
@@ -50,6 +50,7 @@ class AstMeta(type):
         def decorate(f):
             f.arg_locals = f.__code__.co_varnames[1:f.__code__.co_argcount]
             return f
+
         return decorate
 
     @classmethod
@@ -74,8 +75,10 @@ class Ast(metaclass=AstMeta):
         return f'{type(self).__name__}({ ", ".join(repr(getattr(self, l)) for l in self._locals) })'
 
     def __eq__(self, other):
-        for s,o in zip(self._locals, other._locals):
-            if s != o: return False
+        if (type(self) != type(other)): return False
+        if (self._locals != other._locals) return False
+        for s, o in zip(self._locals, other._locals):
+            if getattr(self, s) != getattr(other, o): return False
         return True
 
 
@@ -84,11 +87,6 @@ class Stmt(Ast):
 
 
 class Expr(Stmt):
-    #def __str__(self) -> str:
-    #    return self.str_prec(0) + ';'
-
-    def str_prec(self, precedence: int) -> str:
-        return "Expr"
 
 
 class If(Stmt):
@@ -159,39 +157,19 @@ class BinOp(Expr):
     def precedence(self) -> int:
         return self.precedence_of(self.op)
 
-    #def str_prec(self, prec: int) -> str:
-    #    left = self.left.str_prec(self.inner_precedence('left'))
-    #    right = self.right.str_prec(self.inner_precedence('right'))
-    #    s = f'{left} {self.op} {right}'
-    #    if self.precedence < prec:
-    #        return f"({s})"
-    #    else:
-    #        return s
 
-    #def __repr__(self):
-    #    return f"{type(self).__name__}({repr(self.op)}, {repr(self.left)}, {repr(self.right)})"
-
-
-class Not(Expr):
+class UnaryOp(Expr):
     @node
-    def __init__(self, expr: Expr):
+    def __init__(self, op: str, expr: Expr):
+        self.op = op
         self.expr = expr
-
-    #def __repr__(self):
-    #    return r'{type(self).__name__}({self.expr})'
-
-    def str_prec(self, prec: int):
-        return f'!{self.expr.str_prec(BinOp.precedence_of("!"))}'
 
 
 class Assign(Stmt):
     @node
-    def __init__(self, var: Expr, value: Expr):
-        self.var = var
+    def __init__(self, target: Expr, value: Expr):
+        self.target = target
         self.value = value
-
-    #def __repr__(self):
-    #    return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'
 
 
 class VarDecl(Stmt):
@@ -209,27 +187,6 @@ class Literal(Expr):
     def __init__(self, value):
         self.value = value
 
-    def str_prec(self, prec: int) -> str:
-        return str(self.value)
-
-    #def __repr__(self):
-    #    return f"{type(self).__name__}({repr(self.value)})"
-
-
-class String(Literal):
-    pass
-
-    def str_prec(self, prec):
-        return f'"{self.value}""'
-
-
-class Boolean(Literal):
-    pass
-
-
-class Number(Literal):
-    pass
-
 
 class Singleton(Literal):
     @node
@@ -238,6 +195,18 @@ class Singleton(Literal):
 
     # def __repr__(self):
     #     return f'{type(self).__name__}()'
+
+
+class String(Literal):
+    pass
+
+
+class Boolean(Literal):
+    pass
+
+
+class Number(Literal):
+    pass
 
 
 class Null(Singleton):
@@ -252,6 +221,19 @@ class Name(Expr):
     @node
     def __init__(self, name):
         self.name = name
+
+
+class Array(Expr):
+    @node
+    def __init__(self, values: Sequence[Expr] = []):
+        self.values = values
+
+
+class Index(Expr):
+    @node
+    def __init__(self, target: Expr, index: Expr):
+        self.target = target
+        self.index = index
 
 
 class Attribute(Expr):
@@ -270,13 +252,19 @@ class Call(Expr):
         self.func = func
         self.args = args
 
-    # def __repr__(self):
-    #     return f'{type(self).__name__}({repr(self.func)}, {repr(self.args)})'
+
+class Return(Expr):
+    @node
+    def __init__(self, expr: Expr = Undefined()):
+        self.expr = expr
 
 
 class FunctionDef(Stmt):
     @node
-    def __init__(self, name: str, args: Sequence[str], body: Sequence[Stmt]):
+    def __init__(self,
+                 name: Optional[Name] = None,
+                 args: Sequence[Name] = [],
+                 body: Sequence[Stmt] = []):
         self.name = name
         self.args = args
         self.body = body

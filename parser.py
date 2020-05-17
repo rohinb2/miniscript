@@ -1,38 +1,17 @@
 # ignore some type checking problems with metaclasses used in sly
 # type: ignore[name-defined]
 # mypy: allow-redefinition
-from sly import Lexer, Parser #type: ignore
+from sly import Lexer, Parser  #type: ignore
 
 from miniscript_ast import *
+
+__all__ = ['MiniScriptLexer', 'MiniScriptParser', 'parse']
 
 
 class MiniScriptLexer(Lexer):
     tokens = {
-        UNDEFINED,
-        NULL,
-        NUMBER,
-        STRING,
-        BOOLEAN,
-        PLUS,
-        MINUS,
-        TIMES,
-        DIV,
-        AND,
-        OR,
-        EQ,
-        NEQ,
-        LT,
-        LE,
-        GT,
-        GE,
-        ID,
-        IF,
-        ELSE,
-        WHILE,
-        FOR,
-        FUNCTION,
-        VAR,
-        ASSIGN,
+        UNDEFINED, NULL, NUMBER, STRING, BOOLEAN, PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE,
+        GT, GE, ID, IF, ELSE, WHILE, FOR, FUNCTION, VAR, ASSIGN, RETURN
     }
 
     literals = {'(', ')', '{', '}', '[', ']', ';', '!', ',', '.'}
@@ -66,6 +45,7 @@ class MiniScriptLexer(Lexer):
     ID['var'] = VAR
     ID['null'] = NULL
     ID['undefined'] = UNDEFINED
+    ID['return'] = RETURN
 
     PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
     AND, OR = '&&', r'\|\|'
@@ -128,6 +108,20 @@ class MiniScriptParser(Parser):
             p.stmt_list.append(p.stmt)
         return p.stmt_list  # [p.stmt] + p.stmt_list
 
+    @_('stmt_list ";" stmt')
+    def stmt_list(self, p):
+        if p.stmt is not None:
+            p.stmt_list.append(p.stmt)
+        return p.stmt_list
+
+    @_('stmt_list ";"')
+    def stmt_list(self, p):
+        return p.stmt_list
+
+    @_('stmt_list expr')
+    def stmt_list(self, p):
+        return [p.expr]
+
     @_('empty')
     def stmt_list(self, p):
         return []
@@ -138,11 +132,11 @@ class MiniScriptParser(Parser):
 
     @_('FUNCTION ID "(" args ")" block')
     def func(self, p):
-        return FunctionDef(p.ID, p.args, p.block)
+        return FunctionDef(Name(p.ID), p.args, p.block)
 
     @_('args2 ID')
     def args(self, p):
-        p.args2.append(p.ID)
+        p.args2.append(Name(p.ID))
         return p.args2
 
     @_('empty')
@@ -151,7 +145,7 @@ class MiniScriptParser(Parser):
 
     @_('args2 ID ","')
     def args2(self, p):
-        p.args2.append(p.ID)
+        p.args2.append(Name(p.ID))
         return p.args2
 
     @_('empty')
@@ -162,17 +156,13 @@ class MiniScriptParser(Parser):
     def stmt(self, p):
         return p.expr
 
-    @_('empty ";"')
-    def stmt(self, p):
-        return Undefined()
-
     @_('expr ASSIGN expr ";"')
     def stmt(self, p):
         return Assign(p.expr0, p.expr1)
 
     @_('block')
     def stmt(self, p):
-        return [p.stmt]
+        return p.block
 
     @_('ifthenelse')
     def stmt(self, p):
@@ -198,9 +188,7 @@ class MiniScriptParser(Parser):
     def whileloop(self, p):
         return While(p.expr, p.stmt)
 
-    @_(*(f'expr {op} expr'
-         for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE])
-       )
+    @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
     def expr(self, p):
         return BinOp(p[1], p.expr0, p.expr1)
 
@@ -208,13 +196,42 @@ class MiniScriptParser(Parser):
     def expr(self, p):
         return p.expr
 
+    @_('"[" expr_list "]"')
+    def expr(self, p):
+        return Array(p.expr_list)
+
+    @_('expr "[" expr "]"')
+    def expr(self, p):
+        return Index(p.expr0, p.expr1)
+
+    @_('expr "(" expr_list ")"')
+    def expr(self, p):
+        return Call(p.expr, p.expr_list)
+
+    @_('expr')
+    def expr_list(self, p):
+        return [p.expr]
+
+    @_('expr_list "," expr')
+    def expr_list(self, p):
+        p.expr_list.append(p.expr)
+        return p.expr_list
+
+    @_('empty')
+    def expr_list(self, p):
+        return []
+
+    @_('MINUS expr')
+    def expr(self, p):
+        return UnaryOp('-', p.expr)
+
     @_('"!" expr')
     def expr(self, p):
-        return Not(p.expr)
+        return UnaryOp('!', p.expr)
 
     @_('NULL')
     def expr(self, p):
-        return Null
+        return Null()
 
     @_('UNDEFINED')
     def expr(self, p):
@@ -230,7 +247,9 @@ class MiniScriptParser(Parser):
 
     @_('BOOLEAN')
     def expr(self, p):
-        return Boolean(p.BOOLEAN)
+        if p.BOOLEAN == 'true': return Boolean(True)
+        elif p.BOOLEAN == 'false': return Boolean(False)
+        self.error()
 
     @_('expr "." ID')
     def expr(self, p):
@@ -240,22 +259,9 @@ class MiniScriptParser(Parser):
     def expr(self, p):
         return Name(p.ID)
 
-    @_('expr "(" expr_list ")"')
+    @_('RETURN expr')
     def expr(self, p):
-        return Call(p.expr, p.expr_list)
-
-    @_('expr')
-    def expr_list(self, p):
-        return [p.expr]
-
-    @_('expr_list "," expr')
-    def expr_list(self, p):
-        p.expr_list.append(p)
-        return p.expr_list
-
-    @_('empty')
-    def expr_list(self, p):
-        return []
+        return Return(p.expr)
 
     @_('')
     def empty(self, p):
@@ -266,6 +272,10 @@ class MiniScriptParser(Parser):
         next(self.tokens, None)
         self.restart()
         return p
+
+
+def parse(s):
+    return MiniScriptParser().parse(MiniScriptLexer().tokenize(s))
 
 
 if __name__ == '__main__':
