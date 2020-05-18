@@ -4,7 +4,7 @@ T = TypeVar('T')
 __all__ = [
     'NodeVisitor', 'Ast', 'Attribute', 'BinOp', 'Boolean', 'Call', 'Expr', 'FunctionDef', 'If',
     'Literal', 'Name', 'Array', 'Index', 'NodeVisitor', 'UnaryOp', 'Null', 'Number', 'Sequence',
-    'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return'
+    'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return', 'Assign'
 ]
 
 
@@ -76,7 +76,7 @@ class Ast(metaclass=AstMeta):
 
     def __eq__(self, other):
         if (type(self) != type(other)): return False
-        if (self._locals != other._locals) return False
+        if (self._locals != other._locals): return False
         for s, o in zip(self._locals, other._locals):
             if getattr(self, s) != getattr(other, o): return False
         return True
@@ -87,6 +87,7 @@ class Stmt(Ast):
 
 
 class Expr(Stmt):
+    pass
 
 
 class If(Stmt):
@@ -174,9 +175,9 @@ class Assign(Stmt):
 
 class VarDecl(Stmt):
     @node
-    def __init__(self, name: str, initial_value: Optional[Expr] = None):
+    def __init__(self, name: str, value: Optional[Expr] = None):
         self.name = name
-        self.value = initial_value
+        self.value = value
 
     #def __repr__(self):
     #    return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'

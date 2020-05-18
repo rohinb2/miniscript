@@ -3,7 +3,7 @@
 # mypy: allow-redefinition
 from sly import Lexer, Parser  #type: ignore
 
-from miniscript_ast import *
+from .miniscript_ast import *
 
 __all__ = ['MiniScriptLexer', 'MiniScriptParser', 'parse']
 
@@ -156,9 +156,13 @@ class MiniScriptParser(Parser):
     def stmt(self, p):
         return p.expr
 
-    @_('expr ASSIGN expr ";"')
-    def stmt(self, p):
+    @_('expr ASSIGN expr')
+    def expr(self, p):
         return Assign(p.expr0, p.expr1)
+
+    @_('VAR ID ";"')
+    def stmt(self, p):
+        return VarDecl(Name(p.ID))
 
     @_('block')
     def stmt(self, p):

@@ -1,4 +1,4 @@
-import miniscript_ast as ast
+from .miniscript_ast import *
 from typing import Optional, Mapping, Sequence
 import math
 
@@ -43,7 +43,7 @@ class TNull(Type):
         return Number(0)
 
 
-Code = ast.Ast
+Code = Ast
 
 
 class TFunction(Type):
