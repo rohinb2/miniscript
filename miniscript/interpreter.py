@@ -1,4 +1,5 @@
 from .miniscript_ast import *
+from .parser import parse
 from typing import Optional, Mapping, Sequence
 import math
 
@@ -20,27 +21,36 @@ class RefError(InterpreterError):
 
 
 class Type:
-    def string(self) -> str:
+    def string(self) -> 'TString':
         raise UnsupportedOperationError('cannot convert to string')
 
-    def number(self) -> 'Number':
-        return Number(float('nan'))
+    def number(self) -> 'TNumber':
+        return TNumber(float('nan'))
 
     def call(self, args: Sequence['Type']) -> 'Type':
         raise UnsupportedOperationError('not a function')
 
+    def __eq__(self, other):
+        return self is other
+
 
 class TUndefined(Type):
     def string(self):
-        return 'undefined'
+        return TString('undefined')
+
+    def __eq__(self, other):
+        return type(self) == type(other)
 
 
 class TNull(Type):
-    def string(self):
+    def string(self) -> 'TString':
         return 'null'
 
     def number(self):
         return Number(0)
+
+    def __eq__(self, other):
+        return type(self) == type(other)
 
 
 Code = Ast
@@ -67,10 +77,23 @@ class TNumber(Type):
 
     def string(self):
         if math.isnan(self.value):
-            return String('NaN')
+            return TString('NaN')
         elif math.isinf(self.value):
-            return String('Infinity' if self.value > 0 else '-Infinity')
-        return String(str(self.value))
+            return TString('Infinity' if self.value > 0 else '-Infinity')
+        return TString(str(self.value))
+
+    def __eq__(self, other):
+        if type(self) != type(other): return False
+        return self.value == other.value
+
+
+class TBoolean(TNumber):
+    def __init__(self, value: bool):
+        self.value = value
+
+    def string(self):
+        if self.value: return TString('true')
+        else: return TString('false')
 
 
 class TString(Type):
@@ -85,6 +108,10 @@ class TString(Type):
 
     def string(self):
         return self
+
+    def __eq__(self, other):
+        if type(self) != type(other): return False
+        return self.value == other.value
 
 
 class TArray(Type):
@@ -103,8 +130,14 @@ class TArray(Type):
         else:
             return f'[{", ".join(map(lambda x: x.string(), self.values))}]'
 
+    def __eq__(self, other):
+        return self.values == other.values
+
 
 class Scope:
+    """Scope for name resolution.
+    If a name is not boud within a scope the lookup is delegated to the parent scope.
+    """
     def __init__(self, parent: Optional['Scope'] = None):
         self.parent = parent
         self.names: Mapping[str, Type] = dict()
@@ -137,6 +170,132 @@ class Scope:
 
 class GlobalScope(Scope):
     def __init__(self):
-        super(GlobalScope).__init__(self, None)
+        super().__init__(None)
 
+    pass
+
+
+class _LocalVarCollector(NodeVisitor):
+    def __init__(self):
+        self.locals = []
+
+    def visit_FunctionDef(self, f: FunctionDef):
+        visitor = type(self)()
+        f.localvars = visitor.visit(f.body)
+
+    def visit_VarDecl(self, declaration: VarDecl):
+        self.locals.append(declaration.name.name)
+
+    def visit(self, tree: Ast):
+        super().visit(tree)
+        return self.locals
+
+
+def is_falsy(e: Expr):
+    # yes, that's what this is called in javascript...
+    return e in [
+        TBoolean(False),
+        TNumber(0),
+        TNull(),
+        TUndefined(),
+        TNumber(float('nan')),
+        TString('')
+    ]
+
+
+class ExpressionEvaluator(NodeVisitor):
+    def __init__(self, scope: Scope):
+        self.scope = scope
+
+    def visit_BinOp(self, tree: BinOp):
+        op, left, right = tree.op, tree.left, tree.right
+        left_val = self.visit(left)
+        if op in ['&&', '||']:
+            # short circuitevaluation
+            if op == '&&':
+                if is_falsy(left_val):
+                    return left_val
+                else:
+                    return self.visit(right)
+            elif op == '||':
+                if is_falsy(left_val):
+                    return self.visit(right)
+                else:
+                    return left_val
+        right_val = self.visit(right)
+        if op == '+':
+            # both are number: addition
+            if (isinstance(left_val, TNumber) or isinstance(left_val, TBoolean)) \
+                and (isinstance(right_val, TNumber) or isinstance(right_val, TBoolean)):
+                return TNumber(left_val.value + right_val.value)
+            # otherwise: string concatenation
+            else:
+                return TString(left_val.string().value + right_val.string().value)
+        elif op == '-':
+            return TNumber(left_val.number().value - right_val.number().value)
+        elif op == '*':
+            return TNumber(left_val.number().value * right_val.number().value)
+        elif op == '/':
+            # division has a few special cases that work differently in python
+            right_num = right_val.number()
+            left_num = left_val.number()
+            if right_num == 0:
+                if left_num == 0:
+                    return TNumber(float('nan'))
+                elif left_num > 0:
+                    return TNumber(float('inf'))
+                elif left_num < 0:
+                    return TNumber(float(- 'inf'))
+                else:
+                    return TNumber(float('nan'))
+        elif op == '==':
+            return TBoolean(left_val == right_val)
+        elif op == '!=':
+            return TBoolean(left_val != right_val)
+        elif op == '>=':
+            return TBoolean(left_val.number().value >= right_val.number().value)
+        elif op == '>':
+            return TBoolean(left_val.number().value > right_val.number().value)
+        elif op == '<':
+            return TBoolean(left_val.number().value < right_val.number().value)
+        elif op == '<=':
+            return TBoolean(left_val.number().value <= right_val.number().value)
+        else:
+            raise UnsupportedOperationError(f'unknown operator "{op}"')
+
+    def visit_UnaryOp(self, tree: Ast):
+        op = tree.op
+        if op == '-':
+            return TNumber(-self.visit(tree).number().value)
+        elif op == '!':
+            return TBoolean(is_falsy(self.visit(tree)))
+        else:
+            raise UnsupportedOperationError(f'unknown operator "{op}')
+
+    def visit_Undefined(self, tree: Undefined):
+        return TUndefined()
+
+    def visit_Null(self, tree: Null):
+        return TNull()
+
+    def visit_String(self, tree: String):
+        return TString(tree.value)
+
+    def visit_Number(self, tree: Number):
+        return TNumber(tree.value)
+
+    def visit_Boolean(self, tree: Boolean):
+        return TBoolean(tree.value)
+
+    def visit_Array(self, tree: Array):
+        return TArray([self.visit(e) for e in tree.values])
+
+    def visit_Name(self, tree: Name):
+        return self.scope[tree.name]
+
+    def generic_visit(self, tree: Ast):
+        raise UnsupportedOperationError(f'unexpected {tree}')
+
+
+class Interpreter:
     pass

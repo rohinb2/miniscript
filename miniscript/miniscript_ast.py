@@ -28,6 +28,7 @@ class NodeVisitor:
         for field, value in tree._locals:
             if isinstance(tree, Ast):
                 self.visit(getattr(self, field))
+        return tree
 
     @staticmethod
     def iter_fields(tree):
@@ -173,16 +174,6 @@ class Assign(Stmt):
         self.value = value
 
 
-class VarDecl(Stmt):
-    @node
-    def __init__(self, name: str, value: Optional[Expr] = None):
-        self.name = name
-        self.value = value
-
-    #def __repr__(self):
-    #    return f'{type(self).__name__}({repr(self.var)}, {repr(self.value)})'
-
-
 class Literal(Expr):
     @node
     def __init__(self, value):
@@ -260,6 +251,13 @@ class Return(Expr):
         self.expr = expr
 
 
+class VarDecl(Stmt):
+    @node
+    def __init__(self, name: Name, value: Optional[Expr] = None):
+        self.name = name
+        self.value = value
+
+
 class FunctionDef(Stmt):
     @node
     def __init__(self,
@@ -269,6 +267,7 @@ class FunctionDef(Stmt):
         self.name = name
         self.args = args
         self.body = body
+        self.localvars = []
 
     #def __repr__(self):
     #    return f'{type(self).__name__}({repr(self.name)}, {repr(self.args)}, {repr(self.body)})'
