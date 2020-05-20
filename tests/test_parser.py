@@ -77,3 +77,6 @@ class TestExpressions:
     def test_declaration(self):
         #assert parse('var x = 5;') == [VarDecl(Name('x'), Number(5))]
         assert parse('var x ;') == [VarDecl(Name('x'))]
+
+    def test_assign(self):
+        assert(parse('x = 5; x')) == [Assign(Name('x'), Number(5)), Name('x')]

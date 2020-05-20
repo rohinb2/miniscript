@@ -161,15 +161,16 @@ class Scope:
     """Scope for name resolution.
     If a name is not boud within a scope the lookup is delegated to the parent scope.
     """
-    def __init__(self, parent: Optional['Scope'] = None):
+    def __init__(self, parent: Optional['Scope'] = None, names = dict()):
         self.parent = parent
-        self.names: Mapping[str, Type] = dict()
+        self.names: Mapping[str, Type] = names
         self._vars = 0
 
     def __getitem__(self, key: str):
+        print(self.names)
         if key in self.names: return self.names[key]
         elif self.parent: return self.parent[key]
-        raise ReferenceError(f'name {key} is not defined')
+        raise RefError(f'name {key} is not defined')
 
     def __setitem__(self, key: str, val: Type, local: bool = False):
         if local or key in self.names or not self.parent:
@@ -189,6 +190,8 @@ class Scope:
             return self._vars
         else:
             return self.parent.fresh_var()
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.parent)}, {self.names})'
 
 
 class GlobalScope(Scope):
@@ -203,8 +206,9 @@ class _LocalVarCollector(NodeVisitor):
         self.locals = []
 
     def visit_FunctionDef(self, f: FunctionDef):
-        visitor = type(self)()
-        f.localvars = visitor.visit(f.body)
+        pass
+        # visitor = type(self)()
+        # f.localvars = visitor.visit(f.body)
 
     def visit_VarDecl(self, declaration: VarDecl):
         self.locals.append(declaration.name.name)
@@ -212,6 +216,10 @@ class _LocalVarCollector(NodeVisitor):
     def visit(self, tree: Ast):
         super().visit(tree)
         return self.locals
+
+def collect_locals(ast: Ast):
+    collector = _LocalVarCollector()
+    return collector.visit(ast)
 
 
 def is_falsy(e: Expr):
@@ -425,3 +433,12 @@ class Interpreter:
             self.evaluate(instruction)
         else:
             raise UnsupportedOperationError(f'{instruction} not supported')
+
+def make_interpreter(source: str):
+    ast = parse(source)
+    globalvars = collect_locals(ast)
+    code = compile(ast)
+    scope = GlobalScope()
+    for var in globalvars:
+        scope.declare(var)
+    return Interpreter(code, scope)

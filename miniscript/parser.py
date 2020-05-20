@@ -121,7 +121,8 @@ class MiniScriptParser(Parser):
 
     @_('stmt_list expr')
     def stmt_list(self, p):
-        return [p.expr]
+        p.stmt_list.append(p.expr)
+        return p.stmt_list
 
     @_('empty')
     def stmt_list(self, p):
