@@ -136,6 +136,9 @@ class TString(Type):
         if type(self) != type(other): return False
         return self.value == other.value
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.value})'
+
 
 class TArray(Type):
     def __init__(self, values: Sequence[Type]):
@@ -156,12 +159,15 @@ class TArray(Type):
     def __eq__(self, other):
         return self.values == other.values
 
+    def __repr__(self):
+        return f'{type(self).__name__}({repr(self.values)})'
+
 
 class Scope:
     """Scope for name resolution.
     If a name is not boud within a scope the lookup is delegated to the parent scope.
     """
-    def __init__(self, parent: Optional['Scope'] = None, names = dict()):
+    def __init__(self, parent: Optional['Scope'] = None, names=dict()):
         self.parent = parent
         self.names: Mapping[str, Type] = names
         self._vars = 0
@@ -190,6 +196,7 @@ class Scope:
             return self._vars
         else:
             return self.parent.fresh_var()
+
     def __repr__(self):
         return f'{type(self).__name__}({repr(self.parent)}, {self.names})'
 
@@ -216,6 +223,7 @@ class _LocalVarCollector(NodeVisitor):
     def visit(self, tree: Ast):
         super().visit(tree)
         return self.locals
+
 
 def collect_locals(ast: Ast):
     collector = _LocalVarCollector()
@@ -433,6 +441,7 @@ class Interpreter:
             self.evaluate(instruction)
         else:
             raise UnsupportedOperationError(f'{instruction} not supported')
+
 
 def make_interpreter(source: str):
     ast = parse(source)
