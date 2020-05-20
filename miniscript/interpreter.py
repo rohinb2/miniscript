@@ -26,6 +26,9 @@ class NotYetImplementedError(Exception):
 class RefError(InterpreterError):
     pass
 
+class MaximumStepsReached(InterpreterError):
+    pass
+
 
 class Type:
     def string(self) -> 'TString':
@@ -161,7 +164,7 @@ class Scope:
     def __contains__(self, key):
         return key in self.names
 
-    def declare(name: str, value: Optional[Type] = Undefined):
+    def declare(self, name: str, value: Optional[Type] = Undefined):
         self.names
 
     def fresh_var(self):
@@ -372,6 +375,8 @@ class Interpreter:
             for i in range(steps):
                 if self.pc >= len(self.code):
                     break
+            else:
+                raise MaximumStepsReached(f'reached maximum of {steps} steps')
 
     def evaluate(self, expr):
         return self.evaluator.visit(expr)
@@ -380,7 +385,7 @@ class Interpreter:
         return g.offset
 
     def run_ConditionalJump(self, j: ConditionalJump):
-        result = self.evaluate(j.cond)
+        result = self.evaluate(j.expr)
         if is_falsy(result):
             return j.offset
         else:
