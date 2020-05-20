@@ -1,10 +1,17 @@
 from .miniscript_ast import *
 from .parser import parse
-from typing import Optional, Mapping, Sequence
+
 import math
+from typing import Optional, Mapping, Sequence, TypeVar
+
+T = TypeVar('T')
 
 
 class InterpreterError(Exception):
+    pass
+
+
+class IllegalStateError(InterpreterError):
     pass
 
 
@@ -53,11 +60,8 @@ class TNull(Type):
         return type(self) == type(other)
 
 
-Code = Ast
-
-
 class TFunction(Type):
-    def __init__(self, name: str, code: Code):
+    def __init__(self, name: str, code: Sequence[Code]):
         self.name = name
         self.code = code
 
@@ -263,12 +267,12 @@ class ExpressionEvaluator(NodeVisitor):
         else:
             raise UnsupportedOperationError(f'unknown operator "{op}"')
 
-    def visit_UnaryOp(self, tree: Ast):
+    def visit_UnaryOp(self, tree: UnaryOp):
         op = tree.op
         if op == '-':
-            return TNumber(-self.visit(tree).number().value)
+            return TNumber(-self.visit(tree.expr).number().value)
         elif op == '!':
-            return TBoolean(is_falsy(self.visit(tree)))
+            return TBoolean(is_falsy(self.visit(tree.expr)))
         else:
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
@@ -297,5 +301,101 @@ class ExpressionEvaluator(NodeVisitor):
         raise UnsupportedOperationError(f'unexpected {tree}')
 
 
+def flatten(l: Sequence[T]):
+    l = l.copy()
+    for i, e in enumerate(l):
+        if isinstance(e, list):
+            if not e:
+                l.pop(i)
+            else:
+                l[i:i+1] = e
+    return l
+
+def compile(code: Ast):
+    compiler = _CodeCompiler()
+    return flatten(compiler.visit(code))
+
+
+class _CodeCompiler(NodeVisitor):
+    def visit_If(self, tree: If):
+        then = self.visit(tree.then)
+        els = self.visit(tree.els)
+        print(then)
+        print(els)
+        # jump when condition is true -> else block comes first
+        els_offset = len(els) + 2
+        els.append(Jump(len(then) + 1))
+        code = [ConditionalJump(tree.cond, els_offset)] + els + then
+        return code
+
+    def visit_While(self, tree: While):
+        body_code = self.visit(tree.body)
+        # jump to conditional in the end
+        body_len = len(body_code) + 1
+        # jump back all the way
+        while_offset = -len(body_code)
+        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset)]
+        return while_code
+
+    #TODO collect locals, etc.
+    #def visit_FunctionDef
+
+    def generic_visit(self, tree: Ast):
+        if isinstance(tree, list):
+            return list(map(self.visit, tree))
+        elif isinstance(tree, Code):
+            return [tree]
+        else:
+            raise UnsupportedOperationError(f'{type(tree).__name__} is not supported')
+
+
 class Interpreter:
-    pass
+    def __init__(self, code: Sequence[Code], scope: Scope):
+        self.code = code
+        self.scope = scope
+        self.pc = 0
+        self.evaluator = ExpressionEvaluator(self.scope)
+
+    def step(self):
+        if 0 <= self.pc < len(self.code):
+            instruction = self.code[self.pc]
+            method = getattr(self, 'run_' + type(instruction).__name__, self.generic_run)
+            self.pc = method(self.code[self.pc]) or 1
+        else:
+            raise IllegalStateError(f'illegal pc {self.pc}')
+
+    def run(self, steps=None):
+        if steps is None:
+            while (self.pc < len(self.code)):
+                self.step()
+        else:
+            for i in range(steps):
+                if self.pc >= len(self.code):
+                    break
+
+    def evaluate(self, expr):
+        return self.evaluator.visit(expr)
+
+    def run_Goto(self, g: Jump):
+        return g.offset
+
+    def run_ConditionalJump(self, j: ConditionalJump):
+        result = self.evaluate(j.cond)
+        if is_falsy(result):
+            return j.offset
+        else:
+            return 1
+
+    def run_Assign(self, a: Assign):
+        result = self.evaluate(a.value)
+        # todo: proper target lookup for assign (e.g. array indeices, etc)
+        if isinstance(a.target, Name):
+            self.scope[a.target.name] = result
+        else:
+            raise UnsupportedOperationError(f'currently only assignment to name is supported')
+
+    def generic_run(self, instruction):
+        if isinstance(instruction, Expr):
+            self.evaluate(instruction)
+        else:
+            raise UnsupportedOperationError(f'{instruction} not supported')

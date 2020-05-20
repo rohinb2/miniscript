@@ -3,6 +3,7 @@ from miniscript import *
 
 if __name__ == '__main__':
     code = ''
+    # todo: replace this with statement evaluator when its ready
     evaluator = ExpressionEvaluator(GlobalScope())
     while True:
         try:

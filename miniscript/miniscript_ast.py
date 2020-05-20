@@ -4,7 +4,8 @@ T = TypeVar('T')
 __all__ = [
     'NodeVisitor', 'Ast', 'Attribute', 'BinOp', 'Boolean', 'Call', 'Expr', 'FunctionDef', 'If',
     'Literal', 'Name', 'Array', 'Index', 'NodeVisitor', 'UnaryOp', 'Null', 'Number', 'Sequence',
-    'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return', 'Assign'
+    'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return', 'Assign', 'Jump',
+    'ConditionalJump', 'Code'
 ]
 
 
@@ -83,11 +84,23 @@ class Ast(metaclass=AstMeta):
         return True
 
 
+class Code(metaclass=AstMeta):
+    @node
+    def __init__(self):
+        pass
+
+    def __eq__(self, other):
+        if type(self) != type(other): return False
+        for l in self._locals:
+            if getattr(self, l) != getattr(other, l): return False
+        return True
+
+
 class Stmt(Ast):
     pass
 
 
-class Expr(Stmt):
+class Expr(Stmt, Code):
     pass
 
 
@@ -167,14 +180,14 @@ class UnaryOp(Expr):
         self.expr = expr
 
 
-class Assign(Stmt):
+class Assign(Stmt, Code):
     @node
     def __init__(self, target: Expr, value: Expr):
         self.target = target
         self.value = value
 
 
-class Literal(Expr):
+class Literal(Expr, Code):
     @node
     def __init__(self, value):
         self.value = value
@@ -245,7 +258,7 @@ class Call(Expr):
         self.args = args
 
 
-class Return(Expr):
+class Return(Expr, Code):
     @node
     def __init__(self, expr: Expr = Undefined()):
         self.expr = expr
@@ -269,5 +282,24 @@ class FunctionDef(Stmt):
         self.body = body
         self.localvars = []
 
-    #def __repr__(self):
-    #    return f'{type(self).__name__}({repr(self.name)}, {repr(self.args)}, {repr(self.body)})'
+
+# some internal code classes:
+class Jump(Code):
+    """Represents a relative jump by a specified offset.
+    """
+    @node
+    def __init__(self, offset: int):
+        self.offset = offset
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.offset})'
+
+
+class ConditionalJump(Code):
+    @node
+    def __init__(self, expr: Expr, offset: int):
+        self.offset = offset
+        self.expr = expr
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.expr}, {self.offset})'

@@ -75,7 +75,3 @@ class TestExpressions:
     def test_declaration(self):
         #assert parse('var x = 5;') == [VarDecl(Name('x'), Number(5))]
         assert parse('var x ;') == [VarDecl(Name('x'))]
-
-
-if __name__ == '__main__':
-    unittest.main()
