@@ -35,6 +35,11 @@ class MiniScriptLexer(Lexer):
         t.value = t.value[1:-1]
         return t
 
+    PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
+    AND, OR = '&&', r'\|\|'
+    EQ, NEQ, LE, LT, GE, GT = '==', '!=', '<=', '<', '>=', '>'
+    ASSIGN = '='
+
     BOOLEAN = r'(true|false)'
     ID = r'[_$\w][_$\w\d]*'
     ID['function'] = FUNCTION
@@ -47,10 +52,6 @@ class MiniScriptLexer(Lexer):
     ID['undefined'] = UNDEFINED
     ID['return'] = RETURN
 
-    PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
-    AND, OR = '&&', r'\|\|'
-    EQ, NEQ, LT, LE, GT, GE = '==', '!=', '<', '<=', '>', '>='
-    ASSIGN = '='
 
     def error(self, t):
         print(

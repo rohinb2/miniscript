@@ -23,6 +23,8 @@ class TestExpressions:
         assert parse('8 - 9;') == [BinOp('-', Number(8), Number(9))]
         assert parse('-9;') == [UnaryOp('-', Number(9))]
         assert parse('!false;') == [UnaryOp('!', Boolean(False))]
+        assert parse('7 <= 13') == [BinOp('<=', Number(7), Number(13))]
+        assert parse('a >= b;') == [BinOp('>=', Name('a'), Name('b'))]
 
     def test_operator_precedence(self):
         assert parse('1 + 2 + 3;') == [BinOp('+', BinOp('+', Number(1), Number(2)), Number(3))]

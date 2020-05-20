@@ -26,6 +26,7 @@ class NotYetImplementedError(Exception):
 class RefError(InterpreterError):
     pass
 
+
 class MaximumStepsReached(InterpreterError):
     pass
 
@@ -42,6 +43,12 @@ class Type:
 
     def __eq__(self, other):
         return self is other
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
+
+    def __str__(self):
+        return self.string().value
 
 
 class TUndefined(Type):
@@ -74,6 +81,9 @@ class TFunction(Type):
     def call(self, args: Sequence[Type]):
         raise NotYetImplementedError()
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.name}, {self.code})'
+
 
 class TNumber(Type):
     def __init__(self, value: float):
@@ -93,6 +103,9 @@ class TNumber(Type):
         if type(self) != type(other): return False
         return self.value == other.value
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.value})'
+
 
 class TBoolean(TNumber):
     def __init__(self, value: bool):
@@ -101,6 +114,9 @@ class TBoolean(TNumber):
     def string(self):
         if self.value: return TString('true')
         else: return TString('false')
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.value})'
 
 
 class TString(Type):
@@ -165,7 +181,7 @@ class Scope:
         return key in self.names
 
     def declare(self, name: str, value: Optional[Type] = Undefined):
-        self.names
+        self.names[name] = value
 
     def fresh_var(self):
         if not self.parent:
@@ -306,13 +322,17 @@ class ExpressionEvaluator(NodeVisitor):
 
 def flatten(l: Sequence[T]):
     l = l.copy()
-    for i, e in enumerate(l):
-        if isinstance(e, list):
-            if not e:
-                l.pop(i)
+    i = 0
+    while i < len(l):
+        while isinstance(l[i], list):
+            if not l[i]:
+                del l[i]
+                break
             else:
-                l[i:i+1] = e
+                l[i:i + 1] = l[i]
+        i += 1
     return l
+
 
 def compile(code: Ast):
     compiler = _CodeCompiler()
@@ -363,7 +383,7 @@ class Interpreter:
         if 0 <= self.pc < len(self.code):
             instruction = self.code[self.pc]
             method = getattr(self, 'run_' + type(instruction).__name__, self.generic_run)
-            self.pc = method(self.code[self.pc]) or 1
+            self.pc += method(self.code[self.pc]) or 1
         else:
             raise IllegalStateError(f'illegal pc {self.pc}')
 
@@ -375,21 +395,22 @@ class Interpreter:
             for i in range(steps):
                 if self.pc >= len(self.code):
                     break
+                self.step()
             else:
                 raise MaximumStepsReached(f'reached maximum of {steps} steps')
 
     def evaluate(self, expr):
         return self.evaluator.visit(expr)
 
-    def run_Goto(self, g: Jump):
+    def run_Jump(self, g: Jump):
         return g.offset
 
     def run_ConditionalJump(self, j: ConditionalJump):
         result = self.evaluate(j.expr)
         if is_falsy(result):
-            return j.offset
-        else:
             return 1
+        else:
+            return j.offset
 
     def run_Assign(self, a: Assign):
         result = self.evaluate(a.value)
@@ -397,7 +418,7 @@ class Interpreter:
         if isinstance(a.target, Name):
             self.scope[a.target.name] = result
         else:
-            raise UnsupportedOperationError(f'currently only assignment to name is supported')
+            raise NotYetImplementedError(f'currently only assignment to name is supported')
 
     def generic_run(self, instruction):
         if isinstance(instruction, Expr):
