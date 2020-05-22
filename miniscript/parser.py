@@ -52,7 +52,6 @@ class MiniScriptLexer(Lexer):
     ID['undefined'] = UNDEFINED
     ID['return'] = RETURN
 
-
     def error(self, t):
         print(
             f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...'

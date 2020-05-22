@@ -32,6 +32,9 @@ class MaximumStepsReached(InterpreterError):
 
 
 class Type:
+    def __inif__(self, label):
+        self.label = label
+
     def string(self) -> 'TString':
         raise UnsupportedOperationError('cannot convert to string')
 
@@ -40,6 +43,9 @@ class Type:
 
     def call(self, args: Sequence['Type']) -> 'Type':
         raise UnsupportedOperationError('not a function')
+
+    def label(self):
+        return self.label
 
     def __eq__(self, other):
         return self is other
@@ -220,7 +226,7 @@ class BuiltinFunction(TFunction):
 
     def call(self, args):
         r = self.f(args)
-        return r if r is not None else Undefined() 
+        return r if r is not None else Undefined()
 
 
 class _LocalVarCollector(NodeVisitor):
@@ -378,22 +384,24 @@ def compile(code: Ast):
 class _CodeCompiler(NodeVisitor):
     def visit_If(self, tree: If):
         then = self.visit(tree.then)
-        els = self.visit(tree.els)
-        print(then)
-        print(els)
+        els = self.visit(tree.els) if tree.els else []
         # jump when condition is true -> else block comes first
         els_offset = len(els) + 2
         els.append(Jump(len(then) + 1))
-        code = [ConditionalJump(tree.cond, els_offset)] + els + then
+        code: List[Code] = [ConditionalJump(tree.cond, els_offset)]
+        code.append(els)
+        code.append(then)
+        code.append(EndBlock())
         return code
 
     def visit_While(self, tree: While):
         body_code = self.visit(tree.body)
+        body_code.append(EndBlock())
         # jump to conditional in the end
         body_len = len(body_code) + 1
         # jump back all the way
         while_offset = -len(body_code)
-        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset)]
+        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset), EndBlock()]
         return while_code
 
     #TODO collect locals, etc.
@@ -455,6 +463,10 @@ class Interpreter:
             self.scope[a.target.name] = result
         else:
             raise NotYetImplementedError(f'currently only assignment to name is supported')
+
+    def run_EndBlock(self, eb: EndBlock):
+        # TODO: update monitor
+        pass
 
     def generic_run(self, instruction):
         if isinstance(instruction, Expr):

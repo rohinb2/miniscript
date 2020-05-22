@@ -5,7 +5,7 @@ __all__ = [
     'NodeVisitor', 'Ast', 'Attribute', 'BinOp', 'Boolean', 'Call', 'Expr', 'FunctionDef', 'If',
     'Literal', 'Name', 'Array', 'Index', 'NodeVisitor', 'UnaryOp', 'Null', 'Number', 'Sequence',
     'Singleton', 'Stmt', 'String', 'Undefined', 'VarDecl', 'While', 'Return', 'Assign', 'Jump',
-    'ConditionalJump', 'Code'
+    'ConditionalJump', 'Code', 'EndBlock'
 ]
 
 
@@ -302,3 +302,12 @@ class ConditionalJump(Code):
 
     def __repr__(self):
         return f'{type(self).__name__}({self.expr}, {self.offset})'
+
+
+class EndBlock(Code):
+    @node
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return f'{type(self).__name__}()'
