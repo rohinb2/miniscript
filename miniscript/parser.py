@@ -96,6 +96,7 @@ class MiniScriptParser(Parser):
         ('left', GT, LT, GE, LE),
         ('left', PLUS, MINUS),
         ('left', TIMES, DIV),
+        ('right', "("),
     )
 
     @_('stmt_list')

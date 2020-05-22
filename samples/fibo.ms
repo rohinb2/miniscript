@@ -1,0 +1,10 @@
+function fib(n) {
+    if (n <= 1) return 1;
+    else return fib(n-1) + fib(n-2);
+}
+
+i = 0;
+while (i < 15) {
+    print(fib(i));
+    i = i + 1;
+}

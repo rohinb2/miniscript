@@ -59,9 +59,12 @@ class TestExpressions:
         assert parse('function foo(a, b) { return b; }') == [
             FunctionDef('foo', ['a', 'b'], [Return(Name('b'))])
         ]
-        assert parse('function abc123(a) { a }') == [
-            FunctionDef('abc123', ['a'], [Name('a')])
-        ]
+        assert parse('function abc123(a) { a }') == [FunctionDef('abc123', ['a'], [Name('a')])]
+
+        assert parse('f(1) + f(2)') == [BinOp('+', Call(Name('f'), [Number(1)]), Call(Name('f'), [Number(2)]))]
+        assert parse('f(1)(2)') == [Call(Call(Name('f'), [Number(1)]), [Number(2)])]
+
+        assert parse('!f(x)') == [UnaryOp('!', Call(Name('f'), [Name('x')]))]
 
     def test_control(self):
         assert parse('if (1 + 1 == 2) 1; else 2;') == [

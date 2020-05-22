@@ -46,7 +46,7 @@ class Type:
     def number(self) -> 'TNumber':
         return TNumber(float('nan'))
 
-    def call(self, args: Sequence['Type']) -> 'Type':
+    def call(self, args: List['Type']) -> 'Type':
         raise UnsupportedOperationError('not a function')
 
     def label(self):
@@ -86,9 +86,9 @@ class TFunction(Type):
         self.name = name
 
     def string(self):
-        return self.name or '<anonymous>'
+        return TString(self.name or '<anonymous>')
 
-    def call(self, args: Sequence[Type]):
+    def call(self, args: List[Type]):
         raise NotYetImplementedError()
 
     def __repr__(self):
@@ -182,11 +182,12 @@ class BuiltinFunction(TFunction):
     def string(self):
         return TString('[native code]')
 
-    def call(self, args):
+    def call(self, args: List[Type]):
         r = self.f(args)
         return r if r is not None else Undefined()
 
 
+import traceback, sys
 class UserFunction(TFunction):
     def __init__(self, code: List[Code], localvars: List[str], argnames: List[str],
                  parent_scope: 'Scope'):
@@ -197,14 +198,12 @@ class UserFunction(TFunction):
 
     def call(self, args):
         scope = Scope(self.parent_scope)
-        print('scope', scope)
         for l in self.localvars:
             scope.declare(l)
         for name, val in zip(self.argnames, args):
             scope.declare(name, val)
         for name in self.argnames[len(args):]:
             scope.declare(name)
-        print('scope', scope)
         try:
             interpreter = Interpreter(self.code, scope)
             interpreter.run()
@@ -300,7 +299,7 @@ class ExpressionEvaluator(NodeVisitor):
     def __init__(self, scope: Scope):
         self.scope = scope
 
-    def visit_BinOp(self, tree: BinOp):
+    def visit_BinOp(self, tree: BinOp) -> Type:
         op, left, right = tree.op, tree.left, tree.right
         left_val = self.visit(left)
         if op in ['&&', '||']:
@@ -323,6 +322,8 @@ class ExpressionEvaluator(NodeVisitor):
                 return TNumber(left_val.value + right_val.value)
             # otherwise: string concatenation
             else:
+                print(type(left_val), left_val)
+                print(type(right_val), right_val)
                 return TString(left_val.string().value + right_val.string().value)
         elif op == '-':
             return TNumber(left_val.number().value - right_val.number().value)
@@ -353,10 +354,9 @@ class ExpressionEvaluator(NodeVisitor):
             return TBoolean(left_val.number().value < right_val.number().value)
         elif op == '<=':
             return TBoolean(left_val.number().value <= right_val.number().value)
-        else:
-            raise UnsupportedOperationError(f'unknown operator "{op}"')
+        raise UnsupportedOperationError(f'unknown operator "{op}"')
 
-    def visit_UnaryOp(self, tree: UnaryOp):
+    def visit_UnaryOp(self, tree: UnaryOp) -> Type:
         op = tree.op
         if op == '-':
             return TNumber(-self.visit(tree.expr).number().value)
@@ -365,33 +365,32 @@ class ExpressionEvaluator(NodeVisitor):
         else:
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
-    def visit_Undefined(self, tree: Undefined):
+    def visit_Undefined(self, tree: Undefined) -> Type:
         return TUndefined()
 
-    def visit_Null(self, tree: Null):
+    def visit_Null(self, tree: Null) -> Type:
         return TNull()
 
-    def visit_String(self, tree: String):
+    def visit_String(self, tree: String) -> Type:
         return TString(tree.value)
 
-    def visit_Number(self, tree: Number):
+    def visit_Number(self, tree: Number) -> Type:
         return TNumber(tree.value)
 
-    def visit_Boolean(self, tree: Boolean):
+    def visit_Boolean(self, tree: Boolean) -> Type:
         return TBoolean(tree.value)
 
-    def visit_Array(self, tree: Array):
+    def visit_Array(self, tree: Array) -> Type:
         return TArray([self.visit(e) for e in tree.values])
 
-    def visit_Name(self, tree: Name):
+    def visit_Name(self, tree: Name) -> Type:
         return self.scope[tree.name]
 
-    def visit_Call(self, tree: Call):
+    def visit_Call(self, tree: Call) -> Type:
         func = self.visit(tree.func)
-        args = list(map(self.visit, tree.args))
         return func.call(list(map(self.visit, tree.args)))
 
-    def visit_FunctionDef(self, tree: FunctionDef):
+    def visit_FunctionDef(self, tree: FunctionDef) -> Type:
         localvars = collect_locals(tree.body)
         code = compile(tree.body)
         f = UserFunction(code, localvars, list(tree.args), self.scope)
@@ -400,7 +399,7 @@ class ExpressionEvaluator(NodeVisitor):
             self.scope[tree.name] = f
         return f
 
-    def generic_visit(self, tree: Ast):
+    def generic_visit(self, tree: Ast) -> Type:
         raise UnsupportedOperationError(f'unexpected {tree}')
 
 

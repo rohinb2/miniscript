@@ -19,8 +19,11 @@ class TestCompiler:
 
         ast3 = [While(Boolean(True), Assign(Name('x'), String('foo')))]
         assert compile(ast3) == [
-            Jump(3), Assign(Name('x'), String('foo')),EndBlock(),
-            ConditionalJump(Boolean(True), -2), EndBlock()
+            Jump(3),
+            Assign(Name('x'), String('foo')),
+            EndBlock(),
+            ConditionalJump(Boolean(True), -2),
+            EndBlock()
         ]
 
 
@@ -97,3 +100,21 @@ class TestInterpreter:
         interpreter = Interpreter(code, s)
         interpreter.run(100)
         assert s['x'] == TNumber(0)
+
+    def test_functions(self):
+        s = Scope()
+        code = compile(parse("function f(x) { y = 2 * x; x = x + 1; return x; };\nz = f(42);"))
+        print(code)
+        interpreter = Interpreter(code, s)
+        interpreter.run(100)
+        assert 'x' not in s
+        assert s['y'] == TNumber(84)
+        assert s['z'] == TNumber(43)
+
+        code2 = compile(parse("function f(x) { y = 2 * x; x = x + 1; return x; };\nz = f(f(42));"))
+        interpreter2 = Interpreter(code2, Scope())
+        interpreter2.run(100)
+        s = interpreter2.scope
+        assert 'x' not in s
+        assert s['y'] == TNumber(86)
+        assert s['z'] == TNumber(44)
