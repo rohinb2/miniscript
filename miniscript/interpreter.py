@@ -2,7 +2,7 @@ from .miniscript_ast import *
 from .parser import parse
 
 import math
-from typing import Optional, Mapping, Sequence, TypeVar
+from typing import Optional, MutableMapping, Sequence, TypeVar, List
 
 T = TypeVar('T')
 
@@ -61,7 +61,7 @@ class TUndefined(Type):
 
 class TNull(Type):
     def string(self) -> 'TString':
-        return 'null'
+        return TString('null')
 
     def number(self):
         return Number(0)
@@ -144,17 +144,17 @@ class TArray(Type):
     def __init__(self, values: Sequence[Type]):
         self.values = values
 
-    def number(self):
+    def number(self) -> TNumber:
         if len(self.values) == 1:
             return self.values[0].number()
         else:
             return super().number()
 
-    def string(self):
+    def string(self) -> TString:
         if not self.values: return TString('')
-        elif len(self.values == 1): return self.values[0].string()
+        elif len(self.values) == 1: return self.values[0].string()
         else:
-            return f'[{", ".join(map(lambda x: x.string(), self.values))}]'
+            return TString(f'[{", ".join(map(str, self.values))}]')
 
     def __eq__(self, other):
         return self.values == other.values
@@ -169,11 +169,10 @@ class Scope:
     """
     def __init__(self, parent: Optional['Scope'] = None, names=dict()):
         self.parent = parent
-        self.names: Mapping[str, Type] = names
+        self.names: MutableMapping[str, Type] = names
         self._vars = 0
 
     def __getitem__(self, key: str):
-        print(self.names)
         if key in self.names: return self.names[key]
         elif self.parent: return self.parent[key]
         raise RefError(f'name {key} is not defined')
@@ -187,7 +186,7 @@ class Scope:
     def __contains__(self, key):
         return key in self.names
 
-    def declare(self, name: str, value: Optional[Type] = Undefined):
+    def declare(self, name: str, value: Type = TUndefined()):
         self.names[name] = value
 
     def fresh_var(self):
@@ -204,8 +203,24 @@ class Scope:
 class GlobalScope(Scope):
     def __init__(self):
         super().__init__(None)
+        p = BuiltinFunction(print)
+        self.declare('print', BuiltinFunction(lambda args: print(*args)))
 
     pass
+
+
+#TODO: define builtins
+class BuiltinFunction(TFunction):
+    def __init__(self, f):
+        super().__init__(self, [])
+        self.f = f
+
+    def string(self):
+        return TString('[native code]')
+
+    def call(self, args):
+        r = self.f(args)
+        return r if r is not None else Undefined() 
 
 
 class _LocalVarCollector(NodeVisitor):
@@ -284,7 +299,7 @@ class ExpressionEvaluator(NodeVisitor):
                 elif left_num > 0:
                     return TNumber(float('inf'))
                 elif left_num < 0:
-                    return TNumber(float(- 'inf'))
+                    return TNumber(-float('inf'))
                 else:
                     return TNumber(float('nan'))
         elif op == '==':
@@ -332,11 +347,16 @@ class ExpressionEvaluator(NodeVisitor):
     def visit_Name(self, tree: Name):
         return self.scope[tree.name]
 
+    def visit_Call(self, tree: Call):
+        func = self.visit(tree.func)
+        args = list(map(self.visit, tree.args))
+        return func.call(list(map(self.visit, tree.args)))
+
     def generic_visit(self, tree: Ast):
         raise UnsupportedOperationError(f'unexpected {tree}')
 
 
-def flatten(l: Sequence[T]):
+def flatten(l):
     l = l.copy()
     i = 0
     while i < len(l):

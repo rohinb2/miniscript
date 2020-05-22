@@ -280,21 +280,5 @@ class MiniScriptParser(Parser):
         return p
 
 
-def parse(s):
+def parse(s: str) -> Ast:
     return MiniScriptParser().parse(MiniScriptLexer().tokenize(s))
-
-
-if __name__ == '__main__':
-    lexer = MiniScriptLexer()
-    parser = MiniScriptParser()
-    code = ''
-    while True:
-        try:
-            code += input() + '\n'
-            print(repr(code))
-        except EOFError:
-            break
-    print(list(map(lambda x: (x.type, x.value), lexer.tokenize(code))))
-    tree = parser.parse(lexer.tokenize(code))
-    print(tree)
-    print(repr(tree))

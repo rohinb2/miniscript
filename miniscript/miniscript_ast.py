@@ -280,7 +280,6 @@ class FunctionDef(Stmt):
         self.name = name
         self.args = args
         self.body = body
-        self.localvars = []
 
 
 # some internal code classes:
