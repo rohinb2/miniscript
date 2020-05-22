@@ -55,12 +55,12 @@ class TestExpressions:
         assert parse(';{;;;};{};;;') == [[], []]
 
     def test_function(self):
-        assert parse('function foo() {}') == [FunctionDef(Name('foo'), [], [])]
+        assert parse('function foo() {}') == [FunctionDef('foo', [], [])]
         assert parse('function foo(a, b) { return b; }') == [
-            FunctionDef(Name('foo'), [Name('a'), Name('b')], [Return(Name('b'))])
+            FunctionDef('foo', ['a', 'b'], [Return(Name('b'))])
         ]
         assert parse('function abc123(a) { a }') == [
-            FunctionDef(Name('abc123'), [Name('a')], [Name('a')])
+            FunctionDef('abc123', ['a'], [Name('a')])
         ]
 
     def test_control(self):

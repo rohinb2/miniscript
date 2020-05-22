@@ -2,7 +2,7 @@ from .miniscript_ast import *
 from .parser import parse
 
 import math
-from typing import Optional, MutableMapping, Sequence, TypeVar, List
+from typing import Optional, MutableMapping as Mapping, Sequence, TypeVar, List, Callable
 
 T = TypeVar('T')
 
@@ -30,6 +30,11 @@ class RefError(InterpreterError):
 class MaximumStepsReached(InterpreterError):
     pass
 
+
+class ReturnStatement(InterpreterError):
+    def __init__(self, value: 'Type', r: Return):
+        super().__init__(f'unexpected return {r}')
+        self.value = value
 
 class Type:
     def __inif__(self, label):
@@ -77,9 +82,8 @@ class TNull(Type):
 
 
 class TFunction(Type):
-    def __init__(self, name: str, code: Sequence[Code]):
+    def __init__(self, name: str = ''):
         self.name = name
-        self.code = code
 
     def string(self):
         return self.name or '<anonymous>'
@@ -88,7 +92,7 @@ class TFunction(Type):
         raise NotYetImplementedError()
 
     def __repr__(self):
-        return f'{type(self).__name__}({self.name}, {self.code})'
+        return f'{type(self).__name__}({self.name})'
 
 
 class TNumber(Type):
@@ -169,13 +173,53 @@ class TArray(Type):
         return f'{type(self).__name__}({repr(self.values)})'
 
 
+#TODO: define builtins
+class BuiltinFunction(TFunction):
+    def __init__(self, f: Callable[[List[Type]], Type], name: str = ''):
+        super().__init__()
+        self.f = f
+
+    def string(self):
+        return TString('[native code]')
+
+    def call(self, args):
+        r = self.f(args)
+        return r if r is not None else Undefined()
+
+
+class UserFunction(TFunction):
+    def __init__(self, code: List[Code], localvars: List[str], argnames: List[str],
+                 parent_scope: 'Scope'):
+        self.code = code
+        self.localvars = localvars
+        self.argnames = argnames
+        self.parent_scope = parent_scope
+
+    def call(self, args):
+        scope = Scope(self.parent_scope)
+        print('scope', scope)
+        for l in self.localvars:
+            scope.declare(l)
+        for name, val in zip(self.argnames, args):
+            scope.declare(name, val)
+        for name in self.argnames[len(args):]:
+            scope.declare(name)
+        print('scope', scope)
+        try:
+            interpreter = Interpreter(self.code, scope)
+            interpreter.run()
+        except ReturnStatement as r:
+            return r.value
+        return interpreter.run()
+
+
 class Scope:
     """Scope for name resolution.
     If a name is not boud within a scope the lookup is delegated to the parent scope.
     """
-    def __init__(self, parent: Optional['Scope'] = None, names=dict()):
+    def __init__(self, parent: Optional['Scope'] = None, names: Optional[Mapping[str, Type]]=None):
         self.parent = parent
-        self.names: MutableMapping[str, Type] = names
+        self.names: Mapping[str, Type] = names or dict()
         self._vars = 0
 
     def __getitem__(self, key: str):
@@ -214,19 +258,8 @@ class GlobalScope(Scope):
 
     pass
 
-
-#TODO: define builtins
-class BuiltinFunction(TFunction):
-    def __init__(self, f):
-        super().__init__(self, [])
-        self.f = f
-
     def string(self):
-        return TString('[native code]')
-
-    def call(self, args):
-        r = self.f(args)
-        return r if r is not None else Undefined()
+        return TString('function () { /* code */ }')
 
 
 class _LocalVarCollector(NodeVisitor):
@@ -246,7 +279,7 @@ class _LocalVarCollector(NodeVisitor):
         return self.locals
 
 
-def collect_locals(ast: Ast):
+def collect_locals(ast: Ast) -> List[str]:
     collector = _LocalVarCollector()
     return collector.visit(ast)
 
@@ -358,6 +391,15 @@ class ExpressionEvaluator(NodeVisitor):
         args = list(map(self.visit, tree.args))
         return func.call(list(map(self.visit, tree.args)))
 
+    def visit_FunctionDef(self, tree: FunctionDef):
+        localvars = collect_locals(tree.body)
+        code = compile(tree.body)
+        f = UserFunction(code, localvars, list(tree.args), self.scope)
+        if tree.name:
+            f.name = tree.name
+            self.scope[tree.name] = f
+        return f
+
     def generic_visit(self, tree: Ast):
         raise UnsupportedOperationError(f'unexpected {tree}')
 
@@ -422,6 +464,7 @@ class Interpreter:
         self.scope = scope
         self.pc = 0
         self.evaluator = ExpressionEvaluator(self.scope)
+        self.return_value = None
 
     def step(self):
         if 0 <= self.pc < len(self.code):
@@ -463,6 +506,9 @@ class Interpreter:
             self.scope[a.target.name] = result
         else:
             raise NotYetImplementedError(f'currently only assignment to name is supported')
+
+    def run_Return(self, r: Return):
+        raise ReturnStatement(self.evaluate(r.expr), r)
 
     def run_EndBlock(self, eb: EndBlock):
         # TODO: update monitor

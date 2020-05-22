@@ -133,11 +133,11 @@ class MiniScriptParser(Parser):
 
     @_('FUNCTION ID "(" args ")" block')
     def func(self, p):
-        return FunctionDef(Name(p.ID), p.args, p.block)
+        return FunctionDef(p.ID, p.args, p.block)
 
     @_('args2 ID')
     def args(self, p):
-        p.args2.append(Name(p.ID))
+        p.args2.append(p.ID)
         return p.args2
 
     @_('empty')
@@ -146,7 +146,7 @@ class MiniScriptParser(Parser):
 
     @_('args2 ID ","')
     def args2(self, p):
-        p.args2.append(Name(p.ID))
+        p.args2.append(p.ID)
         return p.args2
 
     @_('empty')

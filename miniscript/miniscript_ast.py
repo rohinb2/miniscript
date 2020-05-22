@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Callable, TypeVar
+from typing import Optional, Sequence, Callable, TypeVar, Union, List
 T = TypeVar('T')
 
 __all__ = [
@@ -26,20 +26,14 @@ class NodeVisitor:
     def generic_visit(self, tree: 'Ast'):
         """Generic visitor method.
         """
-        for field, value in tree._locals:
-            if isinstance(tree, Ast):
-                self.visit(getattr(self, field))
+        if isinstance(tree, list):
+            for e in tree:
+                self.visit(e)
+        else:
+            for field in map(lambda f: getattr(tree, f), tree._locals):
+                if isinstance(field, Stmt):
+                    self.visit(field)
         return tree
-
-    @staticmethod
-    def iter_fields(tree):
-        for name in dir(tree):
-            field = getattr(tree, name)
-            if isinstance(field, list):
-                for f in field:
-                    self.visit(f)
-            elif isinstance(field, Ast):
-                self.visit(field)
 
 
 # only defined for type checking
@@ -66,7 +60,7 @@ class AstMeta(type):
         return cls
 
 
-class Ast(metaclass=AstMeta):
+class Structured(metaclass=AstMeta):
     _locals: Sequence[str]
 
     @node
@@ -84,20 +78,15 @@ class Ast(metaclass=AstMeta):
         return True
 
 
-class Code(metaclass=AstMeta):
-    @node
-    def __init__(self):
-        pass
-
-    def __eq__(self, other):
-        if type(self) != type(other): return False
-        for l in self._locals:
-            if getattr(self, l) != getattr(other, l): return False
-        return True
-
-
-class Stmt(Ast):
+class Code(Structured):
     pass
+
+
+class Stmt(Structured):
+    pass
+
+
+Ast = Union[Stmt, List[Stmt]]
 
 
 class Expr(Stmt, Code):
@@ -134,9 +123,9 @@ class While(Stmt):
 
 class BinOp(Expr):
     @node
-    def __init__(self, op: str, left: Ast, right: Ast):
-        self.left: Ast = left
-        self.right: Ast = right
+    def __init__(self, op: str, left: Expr, right: Expr):
+        self.left: Expr = left
+        self.right: Expr = right
         self.op: str = op
 
     _prec = {
@@ -224,7 +213,7 @@ class Undefined(Singleton):
 
 class Name(Expr):
     @node
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
 
@@ -271,12 +260,9 @@ class VarDecl(Stmt):
         self.value = value
 
 
-class FunctionDef(Stmt):
+class FunctionDef(Expr):
     @node
-    def __init__(self,
-                 name: Optional[Name] = None,
-                 args: Sequence[Name] = [],
-                 body: Sequence[Stmt] = []):
+    def __init__(self, name: Optional[str] = '', args: List[str] = [], body: Ast = []):
         self.name = name
         self.args = args
         self.body = body
