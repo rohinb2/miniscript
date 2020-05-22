@@ -10,7 +10,8 @@ class TestCompiler:
             ConditionalJump(Boolean(True), 3),
             Assign(Name('y'), String('foo')),
             Jump(2),
-            Assign(Name('x'), Number(5))
+            Assign(Name('x'), Number(5)),
+            EndBlock()
         ]
 
         ast2 = [Call(Name('print'), [Number(7)]), Assign(Name('x'), String('foo'))]
@@ -18,8 +19,8 @@ class TestCompiler:
 
         ast3 = [While(Boolean(True), Assign(Name('x'), String('foo')))]
         assert compile(ast3) == [
-            Jump(2), Assign(Name('x'), String('foo')),
-            ConditionalJump(Boolean(True), -1)
+            Jump(3), Assign(Name('x'), String('foo')),EndBlock(),
+            ConditionalJump(Boolean(True), -2), EndBlock()
         ]
 
 
