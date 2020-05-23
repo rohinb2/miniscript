@@ -87,7 +87,9 @@ class MiniScriptParser(Parser):
 
     op : + | - | * | / | && | || | == | <= | => | < | > 
     """
-    debugfile = 'parser.out'
+    #debugfile = 'parser.out'
+    expected_shift_reduce = 34
+
     tokens = MiniScriptLexer.tokens
     precedence = (
         ('right', AND),

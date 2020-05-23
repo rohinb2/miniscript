@@ -10,9 +10,14 @@ if __name__ == '__main__':
             lines = f.readlines()
     else:
         lines = []
+        prev = None
         while True:
             try:
-                lines.append(input())
+                l = input().strip()
+                if prev == l.strip() == '':
+                    break
+                prev = l
+                lines.append(l)
             except EOFError:
                 break
     source = '\n'.join(lines)

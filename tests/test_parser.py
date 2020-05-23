@@ -39,6 +39,10 @@ class TestExpressions:
         assert parse('!foo(1, b)[42];') == [
             UnaryOp('!', Index(Call(Name('foo'), [Number(1), Name('b')]), Number(42)))
         ]
+        assert parse('!1 + 1') == [BinOp('+', UnaryOp('!', Number(1)), Number(1))]
+        assert parse('-1 * 1') == [BinOp('*', UnaryOp('-', Number(1)), Number(1))]
+        assert parse('1 + a[3]') == [BinOp('+', Number(1), Index(Name('a'), Number(3)))]
+        assert parse('a.b()()') == [Call(Call(Attribute(Name('a'), 'b'), []), [])]
 
     def test_array(self):
         assert parse('[1,2,"asd", []];') == [Array([Number(1), Number(2), String('asd'), Array()])]
