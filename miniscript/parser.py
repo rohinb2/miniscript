@@ -98,44 +98,45 @@ class MiniScriptParser(Parser):
         ('left', GT, LT, GE, LE),
         ('left', PLUS, MINUS),
         ('left', TIMES, DIV),
-        ('right', "("),
+        ('right', UMINUS),
+        ('right', '(', '.', '['),
     )
 
-    @_('stmt_list')
-    def prog(self, p):
+    #@_('stmt_list')
+    #def prog(self, p):
+    #    return p[0]
+
+    @_('stmt_list1')
+    def stmt_list(self, p):
         return p[0]
 
-    @_('stmt_list stmt')
+    @_('stmt_list1 expr')
     def stmt_list(self, p):
+        # final expression does not need semicolon
+        if p.expr is not None:
+            p.stmt_list1.append(p.expr)
+        return p.stmt_list1
+
+    @_('stmt_list1 stmt')
+    def stmt_list1(self, p):
         if p.stmt is not None:
-            p.stmt_list.append(p.stmt)
-        return p.stmt_list  # [p.stmt] + p.stmt_list
-
-    @_('stmt_list ";" stmt')
-    def stmt_list(self, p):
-        if p.stmt is not None:
-            p.stmt_list.append(p.stmt)
-        return p.stmt_list
-
-    @_('stmt_list ";"')
-    def stmt_list(self, p):
-        return p.stmt_list
-
-    @_('stmt_list expr')
-    def stmt_list(self, p):
-        p.stmt_list.append(p.expr)
-        return p.stmt_list
+            p.stmt_list1.append(p.stmt)
+        return p.stmt_list1  # [p.stmt] + p.stmt_list
 
     @_('empty')
-    def stmt_list(self, p):
+    def stmt_list1(self, p):
         return []
 
-    @_('func')
+    @_('stmt_list1 ";"')
+    def stmt_list1(self, p):
+        return p.stmt_list1
+
+    @_('functiondef')
     def stmt(self, p):
         return p[0]
 
     @_('FUNCTION ID "(" args ")" block')
-    def func(self, p):
+    def functiondef(self, p):
         return FunctionDef(p.ID, p.args, p.block)
 
     @_('args2 ID')
@@ -229,11 +230,11 @@ class MiniScriptParser(Parser):
     def expr_list(self, p):
         return []
 
-    @_('MINUS expr')
+    @_('MINUS expr %prec UMINUS')
     def expr(self, p):
         return UnaryOp('-', p.expr)
 
-    @_('"!" expr')
+    @_('"!" expr %prec UMINUS')
     def expr(self, p):
         return UnaryOp('!', p.expr)
 
