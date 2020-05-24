@@ -176,6 +176,21 @@ class TArray(Type):
     def __repr__(self):
         return f'{type(self).__name__}({repr(self.values)})'
 
+class Monitor:
+    def __init__(self):
+        self.pc_levels = [set()] # type: List[Set(String)]
+
+    def handle_BinOp(self, left_res: Type, right_res: Type):
+        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
+    
+    def handle_UnaryOp(self, res: Type):
+        return self.pc_levels[-1].union(res.label)
+
+    def handle_end_block(self):
+        self.pc_levels.pop()
+    
+    def handle_enter_block(self, res: Type):
+        self.pc_levels.append(self.pc_levels[-1].union(res.label))
 
 #TODO: define builtins
 class BuiltinFunction(TFunction):
@@ -186,7 +201,7 @@ class BuiltinFunction(TFunction):
     def string(self):
         return TString('[native code]')
 
-    def call(self, args: List[Type]):
+    def call(self, args: List[Type], monitor: Monitor):
         r = self.f(args)
         return r if r is not None else Undefined()
 
@@ -200,7 +215,7 @@ class UserFunction(TFunction):
         self.argnames = argnames
         self.parent_scope = parent_scope
 
-    def call(self, args):
+    def call(self, args, monitor: Monitor):
         scope = Scope(self.parent_scope)
         for l in self.localvars:
             scope.declare(l)
@@ -209,8 +224,6 @@ class UserFunction(TFunction):
         for name in self.argnames[len(args):]:
             scope.declare(name)
         try:
-            monitor = Monitor()
-            # todo: this hsould not take in an empty monitor, it should take in the same monitor as the parent scope was using
             interpreter = Interpreter(self.code, scope, monitor)
             interpreter.run()
         except ReturnStatement as r:
@@ -299,23 +312,6 @@ def is_falsy(e: Expr):
         TNumber(float('nan')),
         TString('')
     ]
-
-class Monitor:
-    def __init__(self):
-        self.pc_levels = [set()] # type: List[Set(String)]
-
-    def handle_BinOp(self, left_res: Type, right_res: Type):
-        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
-    
-    def handle_UnaryOp(self, res: Type):
-        return self.pc_levels[-1].union(res.label)
-
-    def handle_end_block(self):
-        self.pc_levels.pop()
-    
-    def handle_enter_block(self, res: Type):
-        self.pc_levels.append(self.pc_levels[-1].union(res.label))
-    
     
 class ExpressionEvaluator(NodeVisitor):
     def __init__(self, scope: Scope, monitor: Monitor):
@@ -414,7 +410,7 @@ class ExpressionEvaluator(NodeVisitor):
 
     def visit_Call(self, tree: Call) -> Type:
         func = self.visit(tree.func)
-        return func.call(list(map(self.visit, tree.args)))
+        return func.call(list(map(self.visit, tree.args)), self.monitor)
 
     def visit_FunctionDef(self, tree: FunctionDef) -> Type:
         localvars = collect_locals(tree.body)
