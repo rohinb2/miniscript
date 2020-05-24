@@ -271,7 +271,6 @@ class Scope:
 class GlobalScope(Scope):
     def __init__(self):
         super().__init__(None)
-        p = BuiltinFunction(print)
         self.declare('print', BuiltinFunction(lambda args: print(*args)))
 
     pass
