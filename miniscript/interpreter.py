@@ -37,7 +37,7 @@ class ReturnStatement(InterpreterError):
         self.value = value
 
 class Type:
-    def __inif__(self, label):
+    def __init__(self, label=set()):
         self.label = label
 
     def string(self) -> 'TString':
@@ -96,8 +96,9 @@ class TFunction(Type):
 
 
 class TNumber(Type):
-    def __init__(self, value: float):
+    def __init__(self, value: float, label=set()):
         self.value = value
+        self.label = label
 
     def number(self):
         return self
@@ -118,8 +119,9 @@ class TNumber(Type):
 
 
 class TBoolean(TNumber):
-    def __init__(self, value: bool):
+    def __init__(self, value: bool, label=set()):
         self.value = value
+        self.label = label
 
     def string(self):
         if self.value: return TString('true')
@@ -130,8 +132,9 @@ class TBoolean(TNumber):
 
 
 class TString(Type):
-    def __init__(self, value):
+    def __init__(self, value, label=set()):
         self.value = value
+        self.label = label
 
     def number(self):
         try:
@@ -205,7 +208,9 @@ class UserFunction(TFunction):
         for name in self.argnames[len(args):]:
             scope.declare(name)
         try:
-            interpreter = Interpreter(self.code, scope)
+            monitor = Monitor()
+            # todo: this hsould not take in an empty monitor, it should take in the same monitor as the parent scope was using
+            interpreter = Interpreter(self.code, scope, monitor)
             interpreter.run()
         except ReturnStatement as r:
             return r.value
@@ -294,10 +299,27 @@ def is_falsy(e: Expr):
         TString('')
     ]
 
+class Monitor:
+    def __init__(self):
+        self.pc_levels = [set()] # type: List[Set(String)]
 
+    def handle_BinOp(self, left_res: Type, right_res: Type):
+        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
+    
+    def handle_UnaryOp(self, res: Type):
+        return self.pc_levels[-1].union(res.label)
+
+    def handle_end_block(self):
+        self.pc_levels.pop()
+    
+    def handle_enter_block(self, res: Type):
+        self.pc_levels.append(self.pc_levels[-1].union(res.label))
+    
+    
 class ExpressionEvaluator(NodeVisitor):
-    def __init__(self, scope: Scope):
+    def __init__(self, scope: Scope, monitor: Monitor):
         self.scope = scope
+        self.monitor = monitor
 
     def visit_BinOp(self, tree: BinOp) -> Type:
         op, left, right = tree.op, tree.left, tree.right
@@ -315,53 +337,56 @@ class ExpressionEvaluator(NodeVisitor):
                 else:
                     return left_val
         right_val = self.visit(right)
+        res_label = self.monitor.handle_BinOp(left_val, right_val)
         if op == '+':
             # both are number: addition
             if (isinstance(left_val, TNumber) or isinstance(left_val, TBoolean)) \
                 and (isinstance(right_val, TNumber) or isinstance(right_val, TBoolean)):
-                return TNumber(left_val.value + right_val.value)
+                return TNumber(left_val.value + right_val.value, res_label)
             # otherwise: string concatenation
             else:
                 print(type(left_val), left_val)
                 print(type(right_val), right_val)
-                return TString(left_val.string().value + right_val.string().value)
+                return TString(left_val.string().value + right_val.string().value, res_label)
         elif op == '-':
-            return TNumber(left_val.number().value - right_val.number().value)
+            return TNumber(left_val.number().value - right_val.number().value, res_label)
         elif op == '*':
-            return TNumber(left_val.number().value * right_val.number().value)
+            return TNumber(left_val.number().value * right_val.number().value, res_label)
         elif op == '/':
             # division has a few special cases that work differently in python
             right_num = right_val.number()
             left_num = left_val.number()
             if right_num == 0:
                 if left_num == 0:
-                    return TNumber(float('nan'))
+                    return TNumber(float('nan'), res_label)
                 elif left_num > 0:
-                    return TNumber(float('inf'))
+                    return TNumber(float('inf'), res_label)
                 elif left_num < 0:
-                    return TNumber(-float('inf'))
+                    return TNumber(-float('inf'), res_label)
                 else:
-                    return TNumber(float('nan'))
+                    return TNumber(float('nan'), res_label)
         elif op == '==':
-            return TBoolean(left_val == right_val)
+            return TBoolean(left_val == right_val, res_label)
         elif op == '!=':
-            return TBoolean(left_val != right_val)
+            return TBoolean(left_val != right_val, res_label)
         elif op == '>=':
-            return TBoolean(left_val.number().value >= right_val.number().value)
+            return TBoolean(left_val.number().value >= right_val.number().value, res_label)
         elif op == '>':
-            return TBoolean(left_val.number().value > right_val.number().value)
+            return TBoolean(left_val.number().value > right_val.number().value, res_label)
         elif op == '<':
-            return TBoolean(left_val.number().value < right_val.number().value)
+            return TBoolean(left_val.number().value < right_val.number().value, res_label)
         elif op == '<=':
-            return TBoolean(left_val.number().value <= right_val.number().value)
+            return TBoolean(left_val.number().value <= right_val.number().value, res_label)
         raise UnsupportedOperationError(f'unknown operator "{op}"')
 
     def visit_UnaryOp(self, tree: UnaryOp) -> Type:
         op = tree.op
+        res = self.visit(tree.expr)
+        res_label = self.monitor.handle_UnaryOp(res)
         if op == '-':
-            return TNumber(-self.visit(tree.expr).number().value)
+            return TNumber(-res.number().value, res_label)
         elif op == '!':
-            return TBoolean(is_falsy(self.visit(tree.expr)))
+            return TBoolean(is_falsy(res), res_label)
         else:
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
@@ -445,7 +470,7 @@ class _CodeCompiler(NodeVisitor):
         while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset), EndBlock()]
         return while_code
 
-    #TODO collect locals, etc.
+    #TODO: collect locals, etc.
     #def visit_FunctionDef
 
     def generic_visit(self, tree: Ast):
@@ -458,11 +483,12 @@ class _CodeCompiler(NodeVisitor):
 
 
 class Interpreter:
-    def __init__(self, code: Sequence[Code], scope: Scope):
+    def __init__(self, code: Sequence[Code], scope: Scope, monitor: Monitor):
         self.code = code
         self.scope = scope
         self.pc = 0
-        self.evaluator = ExpressionEvaluator(self.scope)
+        self.monitor = monitor
+        self.evaluator = ExpressionEvaluator(self.scope, monitor)
         self.return_value = None
 
     def step(self):
@@ -493,6 +519,7 @@ class Interpreter:
 
     def run_ConditionalJump(self, j: ConditionalJump):
         result = self.evaluate(j.expr)
+        self.monitor.handle_enter_block(result)
         if is_falsy(result):
             return 1
         else:
@@ -510,8 +537,7 @@ class Interpreter:
         raise ReturnStatement(self.evaluate(r.expr), r)
 
     def run_EndBlock(self, eb: EndBlock):
-        # TODO: update monitor
-        pass
+        self.monitor.handle_end_block()
 
     def generic_run(self, instruction):
         if isinstance(instruction, Expr):
@@ -525,6 +551,7 @@ def make_interpreter(source: str):
     globalvars = collect_locals(ast)
     code = compile(ast)
     scope = GlobalScope()
+    monitor = Monitor()
     for var in globalvars:
         scope.declare(var)
-    return Interpreter(code, scope)
+    return Interpreter(code, scope, monitor)

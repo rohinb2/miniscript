@@ -26,7 +26,8 @@ if __name__ == '__main__':
     #print(source)
     #print(ast)
     #print(code)
-    interpreter = Interpreter(code, GlobalScope())
+    monitor = Monitor()
+    interpreter = Interpreter(code, GlobalScope(), monitor)
     try:
         interpreter.run(1000000)
     except InterpreterError as err:
