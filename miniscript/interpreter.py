@@ -59,7 +59,8 @@ class Type:
         return f'{type(self).__name__}()'
 
     def __str__(self):
-        return self.string().value
+        return f'{self.string().value}, (Label: {self.label.__str__()})'
+    
 
 
 class TUndefined(Type):
