@@ -36,6 +36,7 @@ class ReturnStatement(InterpreterError):
         super().__init__(f'unexpected return {r}')
         self.value = value
 
+
 class Type:
     def __init__(self, label=set()):
         self.label = label
@@ -49,18 +50,26 @@ class Type:
     def call(self, args: List['Type']) -> 'Type':
         raise UnsupportedOperationError('not a function')
 
+    @property
     def label(self):
-        return self.label
+        return getattr(self, '_label', set())
+
+    @label.setter
+    def label(self, l):
+        self._label = l
 
     def __eq__(self, other):
+
         return self is other
 
     def __repr__(self):
-        return f'{type(self).__name__}()'
+        return f'{type(self).__name__}({self.label})'
 
     def __str__(self):
-        return f'{self.string().value}, (Label: {self.label.__str__()})'
-    
+        return f'{self.string().value}'
+
+    def lbl_str(self):
+        return f'{str(self)}:{{{ ", ".join(self.label)}}}'
 
 
 class TUndefined(Type):
@@ -72,7 +81,7 @@ class TUndefined(Type):
 
 
 class TNull(Type):
-    def string(self) -> 'TString':
+    def string(self, label=set()) -> 'TString':
         return TString('null')
 
     def number(self):
@@ -83,7 +92,7 @@ class TNull(Type):
 
 
 class TFunction(Type):
-    def __init__(self, name: str = ''):
+    def __init__(self, name: str = '', label=set()):
         self.name = name
 
     def string(self):
@@ -93,7 +102,7 @@ class TFunction(Type):
         raise NotYetImplementedError()
 
     def __repr__(self):
-        return f'{type(self).__name__}({self.name})'
+        return f'{type(self).__name__}({self.label})'
 
 
 class TNumber(Type):
@@ -116,7 +125,7 @@ class TNumber(Type):
         return self.value == other.value
 
     def __repr__(self):
-        return f'{type(self).__name__}({self.value})'
+        return f'{type(self).__name__}({self.value}, {self.label})'
 
 
 class TBoolean(TNumber):
@@ -129,11 +138,11 @@ class TBoolean(TNumber):
         else: return TString('false')
 
     def __repr__(self):
-        return f'{type(self).__name__}({self.value})'
+        return f'{type(self).__name__}({self.value}, {self.label})'
 
 
 class TString(Type):
-    def __init__(self, value, label=set()):
+    def __init__(self, value: str, label=set()):
         self.value = value
         self.label = label
 
@@ -151,12 +160,13 @@ class TString(Type):
         return self.value == other.value
 
     def __repr__(self):
-        return f'{type(self).__name__}({self.value})'
+        return f'{type(self).__name__}({self.value}, {self.label})'
 
 
 class TArray(Type):
-    def __init__(self, values: Sequence[Type]):
+    def __init__(self, values: Sequence[Type], label=set()):
         self.values = values
+        self.label = label
 
     def number(self) -> TNumber:
         if len(self.values) == 1:
@@ -174,25 +184,26 @@ class TArray(Type):
         return self.values == other.values
 
     def __repr__(self):
-        return f'{type(self).__name__}({repr(self.values)})'
+        return f'{type(self).__name__}({repr(self.values)}, {self.label})'
+
 
 class Monitor:
     def __init__(self):
-        self.pc_levels = [set()] # type: List[Set(String)]
+        self.pc_levels = [set()]  # type: List[Set(String)]
 
     def handle_BinOp(self, left_res: Type, right_res: Type):
         return self.pc_levels[-1].union(left_res.label.union(right_res.label))
-    
+
     def handle_UnaryOp(self, res: Type):
         return self.pc_levels[-1].union(res.label)
 
     def handle_end_block(self):
         self.pc_levels.pop()
-    
+
     def handle_enter_block(self, res: Type):
         self.pc_levels.append(self.pc_levels[-1].union(res.label))
 
-#TODO: define builtins
+
 class BuiltinFunction(TFunction):
     def __init__(self, f: Callable[[List[Type]], Type], name: str = ''):
         super().__init__()
@@ -202,11 +213,13 @@ class BuiltinFunction(TFunction):
         return TString('[native code]')
 
     def call(self, args: List[Type], monitor: Monitor):
-        r = self.f(args)
+        r = self.f(*args)
         return r if r is not None else Undefined()
 
 
 import traceback, sys
+
+
 class UserFunction(TFunction):
     def __init__(self, code: List[Code], localvars: List[str], argnames: List[str],
                  parent_scope: 'Scope'):
@@ -235,7 +248,7 @@ class Scope:
     """Scope for name resolution.
     If a name is not boud within a scope the lookup is delegated to the parent scope.
     """
-    def __init__(self, parent: Optional['Scope'] = None, names: Optional[Mapping[str, Type]]=None):
+    def __init__(self, parent: Optional['Scope'] = None, names: Optional[Mapping[str, Type]] = None):
         self.parent = parent
         self.names: Mapping[str, Type] = names or dict()
         self._vars = 0
@@ -271,9 +284,18 @@ class Scope:
 class GlobalScope(Scope):
     def __init__(self):
         super().__init__(None)
-        self.declare('print', BuiltinFunction(lambda args: print(*args)))
+        self.declare('print', BuiltinFunction(print))
 
-    pass
+        def label(val=Undefined(), *args: Sequence[Type]):
+            val.label = val.label.union(map(str, args))
+            return val
+
+        self.declare('label', BuiltinFunction(label))
+
+        def print_label(*args):
+            print(*map(lambda v: v.lbl_str(), args))
+
+        self.declare('labelPrint', BuiltinFunction(print_label))
 
     def string(self):
         return TString('function () { /* code */ }')
@@ -311,9 +333,10 @@ def is_falsy(e: Expr):
         TNumber(float('nan')),
         TString('')
     ]
-    
+
+
 class ExpressionEvaluator(NodeVisitor):
-    def __init__(self, scope: Scope, monitor: Monitor):
+    def __init__(self, scope: Scope, monitor: Monitor = Monitor()):
         self.scope = scope
         self.monitor = monitor
 
@@ -479,7 +502,7 @@ class _CodeCompiler(NodeVisitor):
 
 
 class Interpreter:
-    def __init__(self, code: Sequence[Code], scope: Scope, monitor: Monitor):
+    def __init__(self, code: Sequence[Code], scope: Scope, monitor: Monitor = Monitor()):
         self.code = code
         self.scope = scope
         self.pc = 0
