@@ -21,10 +21,6 @@ if __name__ == '__main__':
             except EOFError:
                 break
     source = '\n'.join(lines)
-    #print(source)
-    #print(ast)
-    #print(code)
-    monitor = Monitor()
     interpreter = make_interpreter(source)
     try:
         interpreter.run(1000000)
