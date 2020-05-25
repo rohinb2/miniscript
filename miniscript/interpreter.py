@@ -271,8 +271,8 @@ class Scope:
     def __contains__(self, key):
         return key in self.names
 
-    def declare(self, name: str, value: Type = TUndefined(), level = set()):
-        value.level = value.level.union(level)
+    def declare(self, name: str, value: Type = TUndefined(), label = set()):
+        value.label = value.label.union(label)
         self.names[name] = value
 
     def fresh_var(self):
