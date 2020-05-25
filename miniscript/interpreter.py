@@ -352,13 +352,17 @@ class ExpressionEvaluator(NodeVisitor):
                 if is_falsy(left_val):
                     return left_val
                 else:
+                    self.monitor.handle_enter_block(left_val)
                     right_val = self.visit(right)
+                    self.monitor.handle_end_block()
                     res_label = self.monitor.handle_BinOp(left_val, right_val)
                     right_val.label = res_label
                     return right_val
             elif op == '||':
                 if is_falsy(left_val):
+                    self.monitor.handle_enter_block(left_val)
                     right_val = self.visit(right)
+                    self.monitor.handle_end_block()
                     res_label = self.monitor.handle_BinOp(left_val, right_val)
                     right_val.label = res_label
                     return right_val                   
