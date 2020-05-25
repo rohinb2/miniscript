@@ -461,7 +461,6 @@ class ExpressionEvaluator(NodeVisitor):
 
 
 def flatten(l):
-    l = l.copy()
     i = 0
     while i < len(l):
         while isinstance(l[i], list):
@@ -482,7 +481,9 @@ def compile(code: Ast):
 class _CodeCompiler(NodeVisitor):
     def visit_If(self, tree: If):
         then = self.visit(tree.then)
+        flatten(then)
         els = self.visit(tree.els) if tree.els else []
+        flatten(els)
         # jump when condition is true -> else block comes first
         els_offset = len(els) + 2
         els.append(Jump(len(then) + 1))
@@ -495,6 +496,7 @@ class _CodeCompiler(NodeVisitor):
     def visit_While(self, tree: While):
         body_code = self.visit(tree.body)
         body_code.append(EndBlock())
+        flatten(body_code)
         # jump to conditional in the end
         body_len = len(body_code) + 1
         # jump back all the way
@@ -575,6 +577,10 @@ class Interpreter:
 
     def run_EndBlock(self, eb: EndBlock):
         self.monitor.handle_end_block()
+
+    def run_VarDecl(self, v: VarDecl):
+        #TODO: support for value declarations
+        pass
 
     def generic_run(self, instruction):
         if isinstance(instruction, Expr):
