@@ -548,8 +548,11 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
-        if a.target.name in self.scope and not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
-            raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
+        if self.monitor.current_pc_level() != set():
+            if a.target.name not in self.scope:
+                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level()}')
+            elif not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
+                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
         result = self.evaluate(a.value)
         # todo: proper target lookup for assign (e.g. array indeices, etc)
         if isinstance(a.target, Name):
