@@ -101,6 +101,12 @@ class TestInterpreter:
         interpreter.run(100)
         assert s['x'] == TNumber(0)
 
+    def test_declarations(self):
+        code = 'var x;\nx=3;function foo() {var x; x = 4; }\nfoo();'
+        i = make_interpreter(code)
+        i.run()
+        assert i.scope['x'] == TNumber(3)
+
     def test_functions(self):
         s = Scope()
         code = compile(parse("function f(x) { y = 2 * x; x = x + 1; return x; };\nz = f(42);"))

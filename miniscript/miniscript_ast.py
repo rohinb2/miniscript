@@ -253,7 +253,7 @@ class Return(Expr, Code):
         self.expr = expr
 
 
-class VarDecl(Stmt):
+class VarDecl(Stmt, Code):
     @node
     def __init__(self, name: Name, value: Optional[Expr] = None):
         self.name = name
