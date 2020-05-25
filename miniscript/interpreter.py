@@ -191,6 +191,9 @@ class Monitor:
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
 
+    def current_pc_level(self):
+        return self.pc_levels[-1]
+
     def handle_BinOp(self, left_res: Type, right_res: Type):
         return self.pc_levels[-1].union(left_res.label.union(right_res.label))
 
@@ -410,22 +413,22 @@ class ExpressionEvaluator(NodeVisitor):
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
     def visit_Undefined(self, tree: Undefined) -> Type:
-        return TUndefined()
+        return TUndefined(self.monitor.current_pc_level())
 
     def visit_Null(self, tree: Null) -> Type:
-        return TNull()
+        return TNull(self.monitor.current_pc_level())
 
     def visit_String(self, tree: String) -> Type:
-        return TString(tree.value)
+        return TString(tree.value, self.monitor.current_pc_level())
 
     def visit_Number(self, tree: Number) -> Type:
-        return TNumber(tree.value)
+        return TNumber(tree.value, self.monitor.current_pc_level())
 
     def visit_Boolean(self, tree: Boolean) -> Type:
-        return TBoolean(tree.value)
+        return TBoolean(tree.value, self.monitor.current_pc_level())
 
     def visit_Array(self, tree: Array) -> Type:
-        return TArray([self.visit(e) for e in tree.values])
+        return TArray([self.visit(e) for e in tree.values], self.monitor.current_pc_level())
 
     def visit_Name(self, tree: Name) -> Type:
         return self.scope[tree.name]
@@ -545,6 +548,11 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
+        if self.monitor.current_pc_level() != set():
+            if a.target.name not in self.scope:
+                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level()}')
+            elif not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
+                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
         result = self.evaluate(a.value)
         # todo: proper target lookup for assign (e.g. array indeices, etc)
         if isinstance(a.target, Name):
