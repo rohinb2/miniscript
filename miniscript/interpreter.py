@@ -235,11 +235,11 @@ class UserFunction(TFunction):
     def call(self, args, monitor: Monitor):
         scope = Scope(self.parent_scope)
         for l in self.localvars:
-            scope.declare(l, level = monitor.current_pc_level)
+            scope.declare(l, label = monitor.current_pc_level)
         for name, val in zip(self.argnames, args):
-            scope.declare(name, val, level = monitor.current_pc_level)
+            scope.declare(name, val, label = monitor.current_pc_level)
         for name in self.argnames[len(args):]:
-            scope.declare(name, level = monitor.current_pc_level)
+            scope.declare(name, label = monitor.current_pc_level)
         try:
             interpreter = Interpreter(self.code, scope, monitor)
             interpreter.run()
