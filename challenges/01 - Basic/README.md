@@ -3,3 +3,5 @@ The goal of this challenge is to remove the high security label from `h` and wri
 The interpreter will enforce the following rules:
 * in `e_1 = e_2` the label of `e_2` will be applied to `e_1`
 
+Write your solution to a file and then run `python challenge.py <your solution file>`.
+
