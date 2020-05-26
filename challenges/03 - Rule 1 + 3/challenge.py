@@ -4,7 +4,7 @@ import argparse
 import random
 
 class Level3Monitor:
-    """Monitor that enforces rule 1 and 2 from our report.
+    """Monitor that enforces rule 1 and 3 from our report.
     """
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
