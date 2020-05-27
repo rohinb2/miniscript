@@ -41,6 +41,8 @@ class TestExpressions:
         ast5 = UnaryOp('-', Number(1))
         assert e.visit(ast5) == TNumber(-1)
         assert e.visit(parse('7 * 13')[0]) == TNumber(91)
+        ast6 = BinOp('/', Number(4), Number(2))
+        assert e.visit(ast6) == TNumber(2)
 
     def test_comparison(self):
         e = ExpressionEvaluator(Scope())
