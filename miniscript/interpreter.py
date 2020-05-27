@@ -459,6 +459,9 @@ class ExpressionEvaluator(NodeVisitor):
                     return TNumber(-float('inf'), res_label)
                 else:
                     return TNumber(float('nan'), res_label)
+            return TNumber(left_val.number().value / right_val.number().value, res_label)
+        elif op == '%':
+            return TNumber(left_val.number().value % right_val.number().value, res_label)
         elif op == '==':
             return TBoolean(left_val == right_val, res_label)
         elif op == '!=':

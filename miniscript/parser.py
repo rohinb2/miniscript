@@ -10,7 +10,7 @@ __all__ = ['MiniScriptLexer', 'MiniScriptParser', 'parse']
 
 class MiniScriptLexer(Lexer):
     tokens = {
-        UNDEFINED, NULL, NUMBER, STRING, BOOLEAN, PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE,
+        UNDEFINED, NULL, NUMBER, STRING, BOOLEAN, PLUS, MINUS, TIMES, DIV, MOD, AND, OR, EQ, NEQ, LT, LE,
         GT, GE, ID, IF, ELSE, WHILE, FOR, FUNCTION, VAR, ASSIGN, RETURN
     }
 
@@ -35,7 +35,7 @@ class MiniScriptLexer(Lexer):
         t.value = t.value[1:-1]
         return t
 
-    PLUS, MINUS, TIMES, DIV = r'\+', '-', r'\*', '/'
+    PLUS, MINUS, TIMES, DIV, MOD = r'\+', '-', r'\*', '/', '%'
     AND, OR = '&&', r'\|\|'
     EQ, NEQ, LE, LT, GE, GT = '==', '!=', '<=', '<', '>=', '>'
     ASSIGN = '='
@@ -96,7 +96,7 @@ class MiniScriptParser(Parser):
         ('left', EQ, NEQ),
         ('left', GT, LT, GE, LE),
         ('left', PLUS, MINUS),
-        ('left', TIMES, DIV),
+        ('left', TIMES, DIV, MOD),
         ('right', UMINUS),
         ('right', '(', '.', '['),
     )
@@ -205,7 +205,7 @@ class MiniScriptParser(Parser):
         #todo change this as soon as for loops are available
         self.error(p)
 
-    @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
+    @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, MOD, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
     def expr(self, p):
         return BinOp(p[1], p.expr0, p.expr1)
 
