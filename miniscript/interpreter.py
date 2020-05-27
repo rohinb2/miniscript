@@ -206,7 +206,25 @@ class Monitor:
     def handle_enter_block(self, res: Type):
         self.pc_levels.append(self.pc_levels[-1].union(res.label))
 
+    def handle_secure_assign(self, a: Assign, scope, evaluator):
+        if self.current_pc_level() != set():
+            # Can't define a new variable in a secure block
+            if a.target.name not in scope:
+                raise IllegalStateError(f'cannot create variable within branch with security level {self.current_pc_level()}')
+            
+            # Can't redefine a variable with too low security
+            elif not self.current_pc_level().issubset(scope[a.target.name].label):
+                raise IllegalStateError(f'cannot modify variable with label {scope[a.target.name].label} within branch with security level {self.current_pc_level()}')
+        result = evaluator.visit(a.value)
 
+        # When assigning a value raise it to at least the security level of the current scope
+        result.label = result.label.union(self.current_pc_level())
+
+        # todo: proper target lookup for assign (e.g. array indeices, etc)
+        if isinstance(a.target, Name):
+            scope[a.target.name] = result
+        else:
+            raise NotYetImplementedError(f'currently only assignment to name is supported')
 class BuiltinFunction(TFunction):
     def __init__(self, f: Callable[[List[Type]], Type], name: str = ''):
         super().__init__()
@@ -558,17 +576,18 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
-        if self.monitor.current_pc_level() != set():
-            if a.target.name not in self.scope:
-                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level()}')
-            elif not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
-                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
-        result = self.evaluate(a.value)
-        # todo: proper target lookup for assign (e.g. array indeices, etc)
-        if isinstance(a.target, Name):
-            self.scope[a.target.name] = result
-        else:
-            raise NotYetImplementedError(f'currently only assignment to name is supported')
+        return self.monitor.handle_secure_assign(a, self.scope, self.evaluator)
+        # if self.monitor.current_pc_level() != set():
+        #     if a.target.name not in self.scope:
+        #         raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level()}')
+        #     elif not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
+        #         raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
+        # result = self.evaluate(a.value)
+        # # todo: proper target lookup for assign (e.g. array indeices, etc)
+        # if isinstance(a.target, Name):
+        #     self.scope[a.target.name] = result
+        # else:
+        #     raise NotYetImplementedError(f'currently only assignment to name is supported')
 
     def run_Return(self, r: Return):
         raise ReturnStatement(self.evaluate(r.expr), r)
