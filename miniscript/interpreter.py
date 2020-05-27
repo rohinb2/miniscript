@@ -580,32 +580,7 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
-<<<<<<< HEAD
         return self.monitor.handle_secure_assign(a, self.scope, self.evaluator)
-        # if self.monitor.current_pc_level() != set():
-        #     if a.target.name not in self.scope:
-        #         raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level()}')
-        #     elif not self.monitor.current_pc_level().issubset(self.scope[a.target.name].label):
-        #         raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level()}')
-        # result = self.evaluate(a.value)
-        # # todo: proper target lookup for assign (e.g. array indeices, etc)
-        # if isinstance(a.target, Name):
-        #     self.scope[a.target.name] = result
-        # else:
-        #     raise NotYetImplementedError(f'currently only assignment to name is supported')
-=======
-        if self.monitor.current_pc_level != set():
-            if a.target.name not in self.scope:
-                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level}')
-            elif not self.monitor.current_pc_level.issubset(self.scope[a.target.name].label):
-                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level}')
-        result = self.evaluate(a.value)
-        # todo: proper target lookup for assign (e.g. array indeices, etc)
-        if isinstance(a.target, Name):
-            self.scope[a.target.name] = result
-        else:
-            raise NotYetImplementedError(f'currently only assignment to name is supported')
->>>>>>> a8846db2fadba780b7e7cc21aaa7d78c048ce607
 
     def run_Return(self, r: Return):
         raise ReturnStatement(self.evaluate(r.expr), r)
