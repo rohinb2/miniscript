@@ -200,12 +200,15 @@ class BaseMonitor:
         return set()
 
     def handle_UnaryOp(self, res: Type):
-        return BOTTOM
+        return set()
 
     def handle_literal(self, res: Type):
         return res
 
     def handle_end_block(self):
+        pass
+
+    def handle_enter_block(self, res):
         pass
 
     def handle_secure_assign(self, a: Assign, scope, evaluator):
