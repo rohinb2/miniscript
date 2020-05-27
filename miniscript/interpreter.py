@@ -191,6 +191,7 @@ class Monitor:
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
 
+    @property
     def current_pc_level(self):
         return self.pc_levels[-1]
 
@@ -252,11 +253,11 @@ class UserFunction(TFunction):
     def call(self, args, monitor: Monitor):
         scope = Scope(self.parent_scope)
         for l in self.localvars:
-            scope.declare(l)
+            scope.declare(l, label = monitor.current_pc_level)
         for name, val in zip(self.argnames, args):
-            scope.declare(name, val)
+            scope.declare(name, val, label = monitor.current_pc_level)
         for name in self.argnames[len(args):]:
-            scope.declare(name)
+            scope.declare(name, label = monitor.current_pc_level)
         try:
             interpreter = Interpreter(self.code, scope, monitor)
             interpreter.run()
@@ -288,7 +289,8 @@ class Scope:
     def __contains__(self, key):
         return key in self.names
 
-    def declare(self, name: str, value: Type = TUndefined()):
+    def declare(self, name: str, value: Type = TUndefined(), label = set()):
+        value.label = value.label.union(label)
         self.names[name] = value
 
     def fresh_var(self):
@@ -441,22 +443,22 @@ class ExpressionEvaluator(NodeVisitor):
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
     def visit_Undefined(self, tree: Undefined) -> Type:
-        return TUndefined(self.monitor.current_pc_level())
+        return TUndefined(self.monitor.current_pc_level)
 
     def visit_Null(self, tree: Null) -> Type:
-        return TNull(self.monitor.current_pc_level())
+        return TNull(self.monitor.current_pc_level)
 
     def visit_String(self, tree: String) -> Type:
-        return TString(tree.value, self.monitor.current_pc_level())
+        return TString(tree.value, self.monitor.current_pc_level)
 
     def visit_Number(self, tree: Number) -> Type:
-        return TNumber(tree.value, self.monitor.current_pc_level())
+        return TNumber(tree.value, self.monitor.current_pc_level)
 
     def visit_Boolean(self, tree: Boolean) -> Type:
-        return TBoolean(tree.value, self.monitor.current_pc_level())
+        return TBoolean(tree.value, self.monitor.current_pc_level)
 
     def visit_Array(self, tree: Array) -> Type:
-        return TArray([self.visit(e) for e in tree.values], self.monitor.current_pc_level())
+        return TArray([self.visit(e) for e in tree.values], self.monitor.current_pc_level)
 
     def visit_Name(self, tree: Name) -> Type:
         return self.scope[tree.name]
@@ -479,7 +481,6 @@ class ExpressionEvaluator(NodeVisitor):
 
 
 def flatten(l):
-    l = l.copy()
     i = 0
     while i < len(l):
         while isinstance(l[i], list):
@@ -500,7 +501,9 @@ def compile(code: Ast):
 class _CodeCompiler(NodeVisitor):
     def visit_If(self, tree: If):
         then = self.visit(tree.then)
+        flatten(then)
         els = self.visit(tree.els) if tree.els else []
+        flatten(els)
         # jump when condition is true -> else block comes first
         els_offset = len(els) + 2
         els.append(Jump(len(then) + 1))
@@ -513,6 +516,7 @@ class _CodeCompiler(NodeVisitor):
     def visit_While(self, tree: While):
         body_code = self.visit(tree.body)
         body_code.append(EndBlock())
+        flatten(body_code)
         # jump to conditional in the end
         body_len = len(body_code) + 1
         # jump back all the way
@@ -576,6 +580,7 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
+<<<<<<< HEAD
         return self.monitor.handle_secure_assign(a, self.scope, self.evaluator)
         # if self.monitor.current_pc_level() != set():
         #     if a.target.name not in self.scope:
@@ -588,12 +593,29 @@ class Interpreter:
         #     self.scope[a.target.name] = result
         # else:
         #     raise NotYetImplementedError(f'currently only assignment to name is supported')
+=======
+        if self.monitor.current_pc_level != set():
+            if a.target.name not in self.scope:
+                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level}')
+            elif not self.monitor.current_pc_level.issubset(self.scope[a.target.name].label):
+                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level}')
+        result = self.evaluate(a.value)
+        # todo: proper target lookup for assign (e.g. array indeices, etc)
+        if isinstance(a.target, Name):
+            self.scope[a.target.name] = result
+        else:
+            raise NotYetImplementedError(f'currently only assignment to name is supported')
+>>>>>>> a8846db2fadba780b7e7cc21aaa7d78c048ce607
 
     def run_Return(self, r: Return):
         raise ReturnStatement(self.evaluate(r.expr), r)
 
     def run_EndBlock(self, eb: EndBlock):
         self.monitor.handle_end_block()
+
+    def run_VarDecl(self, v: VarDecl):
+        if v.value:
+            self.run_Assign(Assign(v.name, v.value))
 
     def generic_run(self, instruction):
         if isinstance(instruction, Expr):
