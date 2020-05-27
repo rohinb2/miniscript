@@ -55,6 +55,7 @@ class MiniScriptLexer(Lexer):
     def error(self, t):
         print(f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...')
         self.index += 1
+        return t
 
     @staticmethod
     def find_column(text, token):
