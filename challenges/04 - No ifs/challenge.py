@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import context
 import miniscript as ms
 from miniscript.miniscript_ast import *
