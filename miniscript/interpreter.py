@@ -208,7 +208,7 @@ class BaseMonitor:
     def handle_end_block(self):
         pass
 
-    def handle_secure_assign(self, a: Assign, scope):
+    def handle_secure_assign(self, a: Assign, scope, evaluator):
         return evaluator.visit(a.value)
 
 
