@@ -217,7 +217,7 @@ class BaseMonitor:
 
 class BlockRule:
     def handle_enter_block(self, res: Type):
-        self.pc_levels.append(self.pc_levels[-1].union(res.label))
+        self.pc_levels.append(self.current_pc_level.union(res.label))
 
     def handle_end_block(self):
         self.pc_levels.pop()
@@ -231,12 +231,12 @@ class LiteralRule:
 
 class ArithmeticOpRule:
     def handle_BinOp(self, left_res: Type, right_res: Type):
-        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
+        return self.current_pc_level.union(left_res.label.union(right_res.label))
 
 
 class UnaryOperatorRule:
     def handle_UnaryOp(self, res: Type):
-        return self.pc_levels[-1].union(res.label)
+        return self.current_pc_level.union(res.label)
 
 
 class AssignRule:
@@ -263,9 +263,8 @@ class AssignRule:
         return result
 
 
-class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, AssignRule, BaseMonitor):
-    def handle_UnaryOp(self, res: Type):
-        return self.pc_levels[-1].union(res.label)
+class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, BaseMonitor):
+    pass
 
 
 class BuiltinFunction(TFunction):
