@@ -263,7 +263,7 @@ class AssignRule:
         return result
 
 
-class Monitor(BaseMonitor, BlockRule, LiteralRule, ArithmeticOpRule, AssignRule):
+class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, AssignRule, BaseMonitor):
     def handle_UnaryOp(self, res: Type):
         return self.pc_levels[-1].union(res.label)
 
