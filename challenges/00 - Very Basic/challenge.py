@@ -3,27 +3,8 @@ import miniscript as ms
 import argparse
 import random
 
-class LightMonitor:
-    """Monitor that doesn't enforce any security policies.
-    """
-    def __init__(self):
-        pass
-
-    @property
-    def current_pc_level(self):
-        return set()
-
-    def handle_BinOp(self, left_res, right_res):
-        return set()
-
-    def handle_UnaryOp(self, res):
-        return set()
-
-    def handle_end_block(self):
-        pass
-
-    def handle_enter_block(self, res):
-        pass
+class LightMonitor(ms.BaseMonitor):
+    pass
 
 class AstRestrictor(ms.NodeVisitor):
     def __init__(self, message = 'You are only allowed to use number literals, variables and arithmetic operators'):
@@ -42,6 +23,9 @@ class AstRestrictor(ms.NodeVisitor):
         self.visit(right)
         return True
     
+    def visit_UnaryOp(self, tree: ms.UnaryOp):
+        return self.visit(tree.expr)
+
     def visit_Name(self, tree):
         return True
     
@@ -73,12 +57,17 @@ if __name__ == '__main__':
     s = ms.Scope()
     s.declare('h', ms.TNumber(r, {'high'}))
     s.declare('l', ms.TUndefined())
-    ast = ms.parse(source)
-    AstRestrictor().visit(ast)
-    code = ms.compile(ast)
-    i = ms.Interpreter(code, s, monitor = LightMonitor())
-    i.run()
-    result = s['l']
+    try:
+        ast = ms.parse(source)
+        AstRestrictor().visit(ast)
+        code = ms.compile(ast)
+        i = ms.Interpreter(code, s, monitor = LightMonitor())
+        result = None
+        i.run()
+        result = s['l']
+        print(f'got l={str(result)} with label {result.label}')
+    except InterruptedError as e:
+        print(e)
     if isinstance(result, ms.TNumber) and result.value == r and result.label == set():
         print('challenge passed')
     else:
