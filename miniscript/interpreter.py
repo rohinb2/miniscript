@@ -188,7 +188,7 @@ class TArray(Type):
         return f'{type(self).__name__}({repr(self.values)}, {self.label})'
 
 
-class Monitor:
+class BaseMonitor:
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
 
@@ -197,42 +197,72 @@ class Monitor:
         return self.pc_levels[-1]
 
     def handle_BinOp(self, left_res: Type, right_res: Type):
-        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
+        return set()
 
     def handle_UnaryOp(self, res: Type):
-        return self.pc_levels[-1].union(res.label)
-    
+        return BOTTOM
+
     def handle_literal(self, res: Type):
-        res.label = self.current_pc_level
         return res
+
+    def handle_end_block(self):
+        pass
+
+    def handle_secure_assign(self, a: Assign, scope):
+        return evaluator.visit(a.value)
+
+
+class BlockRule:
+    def handle_enter_block(self, res: Type):
+        self.pc_levels.append(self.pc_levels[-1].union(res.label))
 
     def handle_end_block(self):
         self.pc_levels.pop()
 
+
+class LiteralRule:
+    def handle_literal(self, res: Type):
+        res.label = self.current_pc_level
+        return res
+
+
+class ArithmeticOpRule:
+    def handle_BinOp(self, left_res: Type, right_res: Type):
+        return self.pc_levels[-1].union(left_res.label.union(right_res.label))
+
+
+class UnaryOperatorRule:
+    def handle_UnaryOp(self, res: Type):
+        return self.pc_levels[-1].union(res.label)
+
+
+class AssignRule:
     def handle_secure_assign(self, a: Assign, scope, evaluator):
         if self.current_pc_level != set():
             # Can't define a new variable in a secure block
             if a.target.name not in scope:
-                raise IllegalStateError(f'cannot create variable within branch with security level {self.current_pc_level}')
+                raise IllegalStateError(
+                    f'cannot create variable within branch with security level {self.current_pc_level}')
 
             # Can't redefine a variable with too low security
             elif not self.current_pc_level.issubset(scope[a.target.name].label):
-                raise IllegalStateError(f'cannot modify variable with label {scope[a.target.name].label} within branch with security level {self.current_pc_level}')
+                raise IllegalStateError(
+                    f'cannot modify variable with label {scope[a.target.name].label} within branch with security level {self.current_pc_level}'
+                )
         result = evaluator.visit(a.value)
 
         # When assigning a value raise it to at least the security level of the current scope
-        # However, simply reading the value from another variable does not mean that that variable's label needs to go up. So, make a copy. We want these to be primitives copied, not references.
+        # However, simply reading the value from another variable does not mean
+        # that that variable's label needs to go up. So, make a copy.
+        # We want these to be primitives copied, not references.
         result = copy.deepcopy(result)
         result.label = result.label.union(self.current_pc_level)
+        return result
 
-        # todo: proper target lookup for assign (e.g. array indeices, etc)
-        if isinstance(a.target, Name):
-            scope[a.target.name] = result
-        else:
-            raise NotYetImplementedError(f'currently only assignment to name is supported')
-    
-    def handle_enter_block(self, res: Type):
-        self.pc_levels.append(self.pc_levels[-1].union(res.label))
+
+class Monitor(BaseMonitor, BlockRule, LiteralRule, ArithmeticOpRule, AssignRule):
+    def handle_UnaryOp(self, res: Type):
+        return self.pc_levels[-1].union(res.label)
 
 
 class BuiltinFunction(TFunction):
@@ -319,6 +349,7 @@ class GlobalScope(Scope):
         self.declare('print', BuiltinFunction(print))
 
         def label(val=Undefined(), *args: Sequence[Type]):
+            val = copy.deepcopy(val)
             val.label = val.label.union(map(str, args))
             return val
 
@@ -394,7 +425,7 @@ class ExpressionEvaluator(NodeVisitor):
                     self.monitor.handle_end_block()
                     res_label = self.monitor.handle_BinOp(left_val, right_val)
                     right_val.label = res_label
-                    return right_val                   
+                    return right_val
                 else:
                     return left_val
         right_val = self.visit(right)
@@ -589,13 +620,7 @@ class Interpreter:
             return j.offset
 
     def run_Assign(self, a: Assign):
-        return self.monitor.handle_secure_assign(a, self.scope, self.evaluator)
-        if self.monitor.current_pc_level != set():
-            if a.target.name not in self.scope:
-                raise IllegalStateError(f'cannot create variable within branch with security level {self.monitor.current_pc_level}')
-            elif not self.monitor.current_pc_level.issubset(self.scope[a.target.name].label):
-                raise IllegalStateError(f'cannot modify variable with label {self.scope[a.target.name].label} within branch with security level {self.monitor.current_pc_level}')
-        result = self.evaluate(a.value)
+        result = self.monitor.handle_secure_assign(a, self.scope, self.evaluator)
         # todo: proper target lookup for assign (e.g. array indeices, etc)
         if isinstance(a.target, Name):
             self.scope[a.target.name] = result
