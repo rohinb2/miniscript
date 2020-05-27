@@ -2,6 +2,7 @@ from .miniscript_ast import *
 from .parser import parse
 
 import math
+import copy
 from typing import Optional, MutableMapping as Mapping, Sequence, TypeVar, List, Callable
 
 T = TypeVar('T')
@@ -200,6 +201,10 @@ class Monitor:
 
     def handle_UnaryOp(self, res: Type):
         return self.pc_levels[-1].union(res.label)
+    
+    def handle_literal(self, res: Type):
+        res.label = self.current_pc_level
+        return res
 
     def handle_end_block(self):
         self.pc_levels.pop()
@@ -216,6 +221,8 @@ class Monitor:
         result = evaluator.visit(a.value)
 
         # When assigning a value raise it to at least the security level of the current scope
+        # However, simply reading the value from another variable does not mean that that variable's label needs to go up. So, make a copy. We want these to be primitives copied, not references.
+        result = copy.deepcopy(result)
         result.label = result.label.union(self.current_pc_level)
 
         # todo: proper target lookup for assign (e.g. array indeices, etc)
@@ -445,22 +452,22 @@ class ExpressionEvaluator(NodeVisitor):
             raise UnsupportedOperationError(f'unknown operator "{op}')
 
     def visit_Undefined(self, tree: Undefined) -> Type:
-        return TUndefined(self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TUndefined())
 
     def visit_Null(self, tree: Null) -> Type:
-        return TNull(self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TNull())
 
     def visit_String(self, tree: String) -> Type:
-        return TString(tree.value, self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TString(tree.value))
 
     def visit_Number(self, tree: Number) -> Type:
-        return TNumber(tree.value, self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TNumber(tree.value))
 
     def visit_Boolean(self, tree: Boolean) -> Type:
-        return TBoolean(tree.value, self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TBoolean(tree.value))
 
     def visit_Array(self, tree: Array) -> Type:
-        return TArray([self.visit(e) for e in tree.values], self.monitor.current_pc_level)
+        return self.monitor.handle_literal(TArray([self.visit(e) for e in tree.values]))
 
     def visit_Name(self, tree: Name) -> Type:
         return self.scope[tree.name]
