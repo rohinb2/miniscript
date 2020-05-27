@@ -53,9 +53,7 @@ class MiniScriptLexer(Lexer):
     ID['return'] = RETURN
 
     def error(self, t):
-        print(
-            f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...'
-        )
+        print(f'{t.lineno}:{self.find_column(t.value, t)}: Illegal character: "{t.value[0]}". Ignoring...')
         self.index += 1
 
     @staticmethod
@@ -88,7 +86,7 @@ class MiniScriptParser(Parser):
     op : + | - | * | / | && | || | == | <= | => | < | > 
     """
     #debugfile = 'parser.out'
-    expected_shift_reduce = 34
+    expected_shift_reduce = 33
 
     tokens = MiniScriptLexer.tokens
     precedence = (
@@ -105,6 +103,10 @@ class MiniScriptParser(Parser):
     #@_('stmt_list')
     #def prog(self, p):
     #    return p[0]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.had_error = False
 
     @_('stmt_list1')
     def stmt_list(self, p):
@@ -197,6 +199,11 @@ class MiniScriptParser(Parser):
     def whileloop(self, p):
         return While(p.expr, p.stmt)
 
+    @_('FOR')
+    def stmt(self, p):
+        #todo change this as soon as for loops are available
+        self.error(p)
+
     @_(*(f'expr {op} expr' for op in [PLUS, MINUS, TIMES, DIV, AND, OR, EQ, NEQ, LT, LE, GT, GE]))
     def expr(self, p):
         return BinOp(p[1], p.expr0, p.expr1)
@@ -276,6 +283,11 @@ class MiniScriptParser(Parser):
     def empty(self, p):
         return []
 
+    def error(self, p):
+        print(f'syntax error at token {p}')
+        self.had_error = True
+        return super().error(p)
+
     def _error(self, p):
         print(f'syntax error at {p}')
         next(self.tokens, None)
@@ -283,5 +295,13 @@ class MiniScriptParser(Parser):
         return p
 
 
+class CompileError(Exception):
+    pass
+
+
 def parse(s: str) -> Ast:
-    return MiniScriptParser().parse(MiniScriptLexer().tokenize(s))
+    parser = MiniScriptParser()
+    ast = parser.parse(MiniScriptLexer().tokenize(s))
+    if parser.had_error:
+        raise CompileError('syntax errors while parsing source')
+    return ast
