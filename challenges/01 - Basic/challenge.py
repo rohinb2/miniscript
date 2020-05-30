@@ -4,11 +4,13 @@ import miniscript as ms
 import argparse
 import random
 
+
 class LightMonitor(ms.BaseMonitor):
     pass
 
+
 class AstRestrictor(ms.NodeVisitor):
-    def __init__(self, message = 'You are only allowed to use number literals, variables and arithmetic operators'):
+    def __init__(self, message='You are only allowed to use number literals, variables and arithmetic operators'):
         self.message = message
 
     def error(self, tree):
@@ -45,30 +47,10 @@ class AstRestrictor(ms.NodeVisitor):
         else:
             raise self.error(tree)
 
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='run the challenge')
-    parser.add_argument('code', help='attacker code')
-    args = parser.parse_args()
-    with open(args.code) as f:
-        source = f.read()
-    r = random.randrange(1000000000)
-    l = ms.Undefined()
-    s = ms.Scope()
-    s.declare('h', ms.TNumber(r, {'high'}))
-    s.declare('l', ms.TUndefined())
-    result = None
-    try:
-        ast = ms.parse(source)
-        AstRestrictor().visit(ast)
-        code = ms.compile(ast)
-        i = ms.Interpreter(code, s, monitor=LightMonitor())
-        i.run()
-        result = s['l']
-        print(f'got l={str(result)} with label {result.label}')
-    except ms.InterpreterError as e:
-        print(e)
-    if isinstance(result, ms.TNumber) and result.value == r and result.label == set():
-        print('challenge passed')
-    else:
-        print('not quite. try again')
-    pass
+    default_main(
+        Challenge(name='still basic challenge',
+                  challenge=[('h', 'l', lambda: ms.TNumber(random.randrange(1000000000), label={'high'}))],
+                  monitor=LightMonitor(),
+                  restrictions=AstRestrictor().visit))
