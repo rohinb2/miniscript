@@ -439,8 +439,6 @@ class ExpressionEvaluator(NodeVisitor):
                 return TNumber(left_val.value + right_val.value, res_label)
             # otherwise: string concatenation
             else:
-                print(type(left_val), left_val)
-                print(type(right_val), right_val)
                 return TString(left_val.string().value + right_val.string().value, res_label)
         elif op == '-':
             return TNumber(left_val.number().value - right_val.number().value, res_label)
