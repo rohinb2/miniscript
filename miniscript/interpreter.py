@@ -654,7 +654,9 @@ class Interpreter:
             raise NotYetImplementedError(f'currently only assignment to name is supported')
 
     def run_Return(self, r: Return):
-        raise ReturnStatement(self.evaluate(r.expr), r)
+        value = self.evaluate(r.expr)
+        self.monitor.handle_return(value)
+        raise ReturnStatement(value, r)
 
     def run_EndBlock(self, eb: EndBlock):
         self.monitor.handle_end_block()
