@@ -191,6 +191,7 @@ class TArray(Type):
 class BaseMonitor:
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
+        self.return_address = []
 
     @property
     def current_pc_level(self):
@@ -213,6 +214,18 @@ class BaseMonitor:
 
     def handle_secure_assign(self, a: Assign, scope, evaluator):
         return evaluator.visit(a.value)
+
+    def handle_call(self, func: TFunction, args: List[Type]):
+        self.return_address.append(len(self.pc_levels))
+
+    def handle_return(self, val: Type):
+        a = self.return_address.pop()
+        while len(self.pc_levels) > a:
+            self.pc_levels.pop()
+
+
+class FlowControlError(InterpreterError):
+    pass
 
 
 class BlockRule:
@@ -244,12 +257,12 @@ class AssignRule:
         if self.current_pc_level != set():
             # Can't define a new variable in a secure block
             if a.target.name not in scope:
-                raise IllegalStateError(
+                raise FlowControlError(
                     f'cannot create variable within branch with security level {self.current_pc_level}')
 
             # Can't redefine a variable with too low security
             elif not self.current_pc_level.issubset(scope[a.target.name].label):
-                raise IllegalStateError(
+                raise FlowControlError(
                     f'cannot modify variable with label {scope[a.target.name].label} within branch with security level {self.current_pc_level}'
                 )
         result = evaluator.visit(a.value)
@@ -263,7 +276,15 @@ class AssignRule:
         return result
 
 
-class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, BaseMonitor):
+class ReturnRule:
+    def handle_return(self, value: Type):
+        a = self.return_address[-1]
+        if not self.current_pc_level.issubset(self.pc_levels[a - 1]):
+            raise FlowControlError('return statment in illegal context')
+        BaseMonitor.handle_return(self, value)
+
+
+class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, BaseMonitor, ReturnRule):
     pass
 
 
@@ -508,7 +529,9 @@ class ExpressionEvaluator(NodeVisitor):
 
     def visit_Call(self, tree: Call) -> Type:
         func = self.visit(tree.func)
-        return func.call(list(map(self.visit, tree.args)), self.monitor)
+        args = list(map(self.visit, tree.args))
+        self.monitor.handle_call(func, args)
+        return func.call(args, self.monitor)
 
     def visit_FunctionDef(self, tree: FunctionDef) -> Type:
         localvars = collect_locals(tree.body)
