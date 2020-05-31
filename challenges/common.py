@@ -43,8 +43,8 @@ class Challenge:
 
     def run(self, source):
         passed = True
-        for i in range(self.nruns):
-            try:
+        try:
+            for i in range(self.nruns):
                 ast = ms.parse(source)
                 if not self.restrictions or self.restrictions(ast):
                     code = ms.compile(ast)
@@ -59,9 +59,9 @@ class Challenge:
                 else:
                     print('you used forbidden syntax elements')
                     passed = False
-            except ms.InterpreterError as e:
-                print(e)
-                passed = False
+        except ms.InterpreterError as e:
+            print(e)
+            passed = False
         if passed:
             print('congratulations, you passed')
             return True

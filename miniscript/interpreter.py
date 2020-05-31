@@ -289,15 +289,19 @@ class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, Assig
 
 
 class BuiltinFunction(TFunction):
-    def __init__(self, f: Callable[[List[Type]], Type], name: str = ''):
+    def __init__(self, f: Callable[[List[Type]], Type], name: str = '', pass_monitor: bool = False):
         super().__init__()
         self.f = f
+        self.pass_monitor = pass_monitor
 
     def string(self):
         return TString('[native code]')
 
     def call(self, args: List[Type], monitor: Monitor):
-        r = self.f(*args)
+        if not self.pass_monitor:
+            r = self.f(*args)
+        else:
+            r = self.f(monitor, *args)
         return r if r is not None else Undefined()
 
 
@@ -378,10 +382,10 @@ class GlobalScope(Scope):
 
         self.declare('label', BuiltinFunction(label))
 
-        def print_label(*args):
-            print(*map(lambda v: v.lbl_str(), args))
+        def print_label(m, *args):
+            print(m.current_pc_level, *map(lambda v: v.lbl_str(), args))
 
-        self.declare('labelPrint', BuiltinFunction(print_label))
+        self.declare('labelPrint', BuiltinFunction(print_label, pass_monitor=True))
 
     def string(self):
         return TString('function () { /* code */ }')
