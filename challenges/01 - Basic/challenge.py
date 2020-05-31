@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import context
-import miniscript as ms
-import argparse
 import random
+import miniscript as ms
+from common import Challenge, default_main
 
 
 class LightMonitor(ms.BaseMonitor):
@@ -42,8 +42,10 @@ class AstRestrictor(ms.NodeVisitor):
 
     def generic_visit(self, tree):
         if isinstance(tree, list):
+            ok = True
             for t in tree:
-                self.visit(t)
+                ok |= self.visit(t)
+            return ok
         else:
             raise self.error(tree)
 

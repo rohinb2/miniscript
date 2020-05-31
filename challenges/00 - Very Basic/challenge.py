@@ -42,9 +42,10 @@ class AstRestrictor(ms.NodeVisitor):
 
     def generic_visit(self, tree):
         if isinstance(tree, list):
+            ok = True
             for t in tree:
-                self.visit(t)
-            return True
+                ok |= self.visit(t)
+            return ok
         else:
             raise self.error(tree)
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import context
-import miniscript as ms
-import argparse
 import random
+import miniscript as ms
+from common import Challenge, default_main
 
 class AstRestrictor(ms.NodeVisitor):
     def __init__(self, message = 'You are only allowed to use number literals, variables and arithmetic operators'):
@@ -37,8 +37,10 @@ class AstRestrictor(ms.NodeVisitor):
 
     def generic_visit(self, tree):
         if isinstance(tree, list):
+            ok = True
             for t in tree:
-                self.visit(t)
+                ok |= self.visit(t)
+            return ok
         else:
             raise self.error(tree)
 
@@ -47,29 +49,8 @@ class Level2Monitor(ms.ArithmeticOpRule, ms.BaseMonitor):
     pass
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='run the challenge')
-    parser.add_argument('code', help='attacker code')
-    args = parser.parse_args()
-    with open(args.code) as f:
-        source = f.read()
-    r = random.randrange(1000000000)
-    l = ms.Undefined()
-    s = ms.Scope()
-    s.declare('h', ms.TNumber(r, {'high'}))
-    s.declare('l', ms.TUndefined())
-    result = None
-    ast = ms.parse(source)
-    try:
-        AstRestrictor().visit(ast)
-        code = ms.compile(ast)
-        i = ms.Interpreter(code, s, monitor = Level2Monitor())
-        i.run()
-        result = s['l']
-        print(f'got l={str(result)} with label {result.label}')
-    except ms.InterpreterError as e:
-        print(e)
-    if isinstance(result, ms.TNumber) and result.value == r and result.label == set():
-        print('challenge passed')
-    else:
-        print('not quite. try again')
-    pass
+    default_main(
+        Challenge(name='very basic challenge',
+                  challenge=[('h', 'l', lambda: ms.TNumber(random.randrange(1000000000), label={'high'}))],
+                  monitor=Level2Monitor(),
+                  restrictions=AstRestrictor().visit))
