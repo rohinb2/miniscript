@@ -284,7 +284,7 @@ class ReturnRule:
         BaseMonitor.handle_return(self, value)
 
 
-class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, BaseMonitor, ReturnRule):
+class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, ReturnRule, BaseMonitor):
     pass
 
 
