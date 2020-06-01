@@ -4,6 +4,7 @@ from .parser import parse
 import math
 import copy
 from typing import Optional, MutableMapping as Mapping, Sequence, TypeVar, List, Callable
+import itertools
 
 T = TypeVar('T')
 
@@ -210,7 +211,7 @@ class BaseMonitor:
     def handle_end_block(self, loop: bool = False):
         pass
 
-    def handle_enter_block(self, res, loop: bool = False):
+    def handle_enter_block(self, res, loop: bool = False, returns = False):
         pass
 
     def handle_secure_assign(self, a: Assign, scope, evaluator):
@@ -232,7 +233,7 @@ class FlowControlError(InterpreterError):
 
 
 class BlockRule:
-    def handle_enter_block(self, res: Type, loop: bool = False):
+    def handle_enter_block(self, res: Type, loop: bool = False, returns = False):
         self.pc_levels.append(self.current_pc_level.union(res.label))
 
     def handle_end_block(self, loop: bool = False):
@@ -240,7 +241,7 @@ class BlockRule:
 
 
 class BlockAndLoopRule:
-    def handle_enter_block(self, res: Type, loop: bool = False):
+    def handle_enter_block(self, res: Type, loop: bool = False, returns = False):
         if not loop or not self.loop_head or self.loop_head[-1] < len(self.pc_levels):
             self.pc_levels.append(self.current_pc_level.union(res.label))
             self.loop_head.append(len(self.pc_levels))
@@ -302,7 +303,16 @@ class ReturnRule:
         BaseMonitor.handle_return(self, value)
 
 
-class Monitor(BlockAndLoopRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, ReturnRule, BaseMonitor):
+class BlockLoopReturnRule(BlockAndLoopRule, ReturnRule):
+    def handle_enter_block(self, cond: Type, loop: bool = False, returns = False):
+        if returns and not self.current_pc_level.issubset(self.pc_levels[self.return_address[-1] - 1]):
+            raise FlowControlError('return statement in branch with high condition')
+        else:
+            return super().handle_enter_block(cond, loop, returns)
+
+
+
+class Monitor(BlockLoopReturnRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, ReturnRule, BaseMonitor):
     pass
 
 
@@ -595,7 +605,12 @@ class _CodeCompiler(NodeVisitor):
         # jump when condition is true -> else block comes first
         els_offset = len(els) + 2
         els.append(Jump(len(then) + 1))
-        code: List[Code] = [ConditionalJump(tree.cond, els_offset)]
+        returns = False
+        for c in itertools.chain(then, els):
+            if isinstance(c, Return) or isinstance(c, ConditionalJump) and c.may_return:
+                returns = True
+                break
+        code: List[Code] = [ConditionalJump(tree.cond, els_offset, may_return = returns)]
         code.append(els)
         code.append(then)
         code.append(EndBlock())
@@ -605,11 +620,17 @@ class _CodeCompiler(NodeVisitor):
         body_code = self.visit(tree.body)
         body_code.append(EndBlock(True))
         flatten(body_code)
+        returns = False
+        for c in body_code:
+            if isinstance(c, Return) or isinstance(c, ConditionalJump) and c.may_return:
+                returns = True
+                break
         # jump to conditional in the end
         body_len = len(body_code) + 1
         # jump back all the way
         while_offset = -len(body_code)
-        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset, is_loop = True), EndBlock()]
+        loop_head = [ConditionalJump(tree.cond, while_offset, is_loop=True, may_return=returns), EndBlock()]
+        while_code = [Jump(body_len)] + body_code + loop_head
         return while_code
 
     #TODO: collect locals, etc.
@@ -661,7 +682,7 @@ class Interpreter:
 
     def run_ConditionalJump(self, j: ConditionalJump):
         result = self.evaluate(j.expr)
-        self.monitor.handle_enter_block(result, j.is_loop)
+        self.monitor.handle_enter_block(result, j.is_loop, j.may_return)
         if is_falsy(result):
             return 1
         else:

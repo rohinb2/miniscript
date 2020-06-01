@@ -68,7 +68,7 @@ class Structured(metaclass=AstMeta):
         pass
 
     def __repr__(self):
-        return f'{type(self).__name__}({ ", ".join(repr(getattr(self, l)) for l in self._locals) })'
+        return f'{type(self).__name__}({ ", ".join(l + " = " + repr(getattr(self, l)) for l in self._locals) })'
 
     def __eq__(self, other):
         if (type(self) != type(other)): return False
