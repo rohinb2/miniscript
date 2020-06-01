@@ -282,18 +282,14 @@ class Jump(Code):
 
 class ConditionalJump(Code):
     @node
-    def __init__(self, expr: Expr, offset: int):
+    def __init__(self, expr: Expr, offset: int, is_loop: bool = False, may_return: bool = False):
         self.offset = offset
         self.expr = expr
-
-    def __repr__(self):
-        return f'{type(self).__name__}({self.expr}, {self.offset})'
+        self.is_loop = is_loop
+        self.may_return = may_return
 
 
 class EndBlock(Code):
     @node
-    def __init__(self):
-        pass
-
-    def __repr__(self):
-        return f'{type(self).__name__}()'
+    def __init__(self, in_loop: bool = False):
+        self.in_loop = in_loop

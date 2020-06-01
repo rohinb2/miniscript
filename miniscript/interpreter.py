@@ -192,6 +192,7 @@ class BaseMonitor:
     def __init__(self):
         self.pc_levels = [set()]  # type: List[Set(String)]
         self.return_address = []
+        self.loop_head = []
 
     @property
     def current_pc_level(self):
@@ -206,10 +207,10 @@ class BaseMonitor:
     def handle_literal(self, res: Type):
         return res
 
-    def handle_end_block(self):
+    def handle_end_block(self, loop: bool = False):
         pass
 
-    def handle_enter_block(self, res):
+    def handle_enter_block(self, res, loop: bool = False):
         pass
 
     def handle_secure_assign(self, a: Assign, scope, evaluator):
@@ -222,6 +223,8 @@ class BaseMonitor:
         a = self.return_address.pop()
         while len(self.pc_levels) > a:
             self.pc_levels.pop()
+        while self.loop_head and self.loop_head[-1] > len(self.pc_levels):
+            self.loop_head.pop()
 
 
 class FlowControlError(InterpreterError):
@@ -229,11 +232,26 @@ class FlowControlError(InterpreterError):
 
 
 class BlockRule:
-    def handle_enter_block(self, res: Type):
+    def handle_enter_block(self, res: Type, loop: bool = False):
         self.pc_levels.append(self.current_pc_level.union(res.label))
 
-    def handle_end_block(self):
+    def handle_end_block(self, loop: bool = False):
         self.pc_levels.pop()
+
+
+class BlockAndLoopRule:
+    def handle_enter_block(self, res: Type, loop: bool = False):
+        if not loop or not self.loop_head or self.loop_head[-1] < len(self.pc_levels):
+            self.pc_levels.append(self.current_pc_level.union(res.label))
+            self.loop_head.append(len(self.pc_levels))
+        else:
+            self.pc_levels[-1] = self.current_pc_level.union(res.label)
+
+    def handle_end_block(self, loop: bool = False):
+        if not loop:
+            self.pc_levels.pop()
+            if self.loop_head and self.loop_head[-1] > len(self.pc_levels):
+                self.loop_head.pop()
 
 
 class LiteralRule:
@@ -284,7 +302,7 @@ class ReturnRule:
         BaseMonitor.handle_return(self, value)
 
 
-class Monitor(BlockRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, ReturnRule, BaseMonitor):
+class Monitor(BlockAndLoopRule, LiteralRule, ArithmeticOpRule, UnaryOperatorRule, AssignRule, ReturnRule, BaseMonitor):
     pass
 
 
@@ -585,13 +603,13 @@ class _CodeCompiler(NodeVisitor):
 
     def visit_While(self, tree: While):
         body_code = self.visit(tree.body)
-        body_code.append(EndBlock())
+        body_code.append(EndBlock(True))
         flatten(body_code)
         # jump to conditional in the end
         body_len = len(body_code) + 1
         # jump back all the way
         while_offset = -len(body_code)
-        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset), EndBlock()]
+        while_code = [Jump(body_len)] + body_code + [ConditionalJump(tree.cond, while_offset, is_loop = True), EndBlock()]
         return while_code
 
     #TODO: collect locals, etc.
@@ -643,7 +661,7 @@ class Interpreter:
 
     def run_ConditionalJump(self, j: ConditionalJump):
         result = self.evaluate(j.expr)
-        self.monitor.handle_enter_block(result)
+        self.monitor.handle_enter_block(result, j.is_loop)
         if is_falsy(result):
             return 1
         else:
@@ -663,7 +681,7 @@ class Interpreter:
         raise ReturnStatement(value, r)
 
     def run_EndBlock(self, eb: EndBlock):
-        self.monitor.handle_end_block()
+        self.monitor.handle_end_block(eb.in_loop)
 
     def run_VarDecl(self, v: VarDecl):
         if v.value:

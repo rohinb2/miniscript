@@ -21,8 +21,8 @@ class TestCompiler:
         assert compile(ast3) == [
             Jump(3),
             Assign(Name('x'), String('foo')),
-            EndBlock(),
-            ConditionalJump(Boolean(True), -2),
+            EndBlock(True),
+            ConditionalJump(Boolean(True), -2, True),
             EndBlock()
         ]
 
