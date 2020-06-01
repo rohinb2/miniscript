@@ -54,5 +54,5 @@ if __name__ == '__main__':
     default_main(
         Challenge(name='still basic challenge',
                   challenge=[('h', 'l', lambda: ms.TNumber(random.randrange(1000000000), label={'high'}))],
-                  monitor=LightMonitor(),
+                  monitor=LightMonitor,
                   restrictions=AstRestrictor().visit))

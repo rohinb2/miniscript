@@ -15,6 +15,6 @@ if __name__ == '__main__':
     default_main(
         Challenge(name='extract boolean without using if',
                   challenge=[('h', 'l', lambda: ms.TBoolean(random.choice((True, False)), label={'high'}))],
-                  monitor=Level4Monitor(),
+                  monitor=Level4Monitor,
                   restrictions=NoIfNodeVisitor().visit,
                   nruns=8))

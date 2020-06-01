@@ -11,5 +11,5 @@ if __name__ == '__main__':
     default_main(
         Challenge(name='extract boolean',
                   challenge=[('h', 'l', lambda: ms.TBoolean(random.choice((True, False)), label={'high'}))],
-                  monitor=Level3Monitor(),
+                  monitor=Level3Monitor,
                   nruns=8))

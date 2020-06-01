@@ -52,7 +52,7 @@ class Challenge:
                     for h, l, g in self.challenge:
                         s.declare(l, ms.TUndefined())
                         s.declare(h, g())
-                    interpreter = ms.Interpreter(code, s, self.monitor)
+                    interpreter = ms.Interpreter(code, s, self.monitor())
                     interpreter.run()
                     if not self.check(s):
                         passed = False
