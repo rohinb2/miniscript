@@ -330,7 +330,9 @@ class BuiltinFunction(TFunction):
             r = self.f(*args)
         else:
             r = self.f(monitor, *args)
-        return r if r is not None else Undefined()
+        retval = r if r is not None else Undefined()
+        monitor.handle_return(retval)
+        return retval
 
 
 import traceback, sys
