@@ -429,7 +429,6 @@ class ExpressionEvaluator(NodeVisitor):
     def __init__(self, scope: Scope, monitor: Optional[Monitor] = None):
         self.monitor = monitor or Monitor()
         self.scope = scope
-        self.monitor = monitor
 
     def visit_BinOp(self, tree: BinOp) -> Type:
         op, left, right = tree.op, tree.left, tree.right
