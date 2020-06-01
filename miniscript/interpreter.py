@@ -331,6 +331,9 @@ class UserFunction(TFunction):
             return r.value
         return interpreter.run()
 
+    def string(self):
+        return TString('function () { /* code */ }')
+
 
 class Scope:
     """Scope for name resolution.
@@ -353,7 +356,7 @@ class Scope:
             self.parent[key] = val
 
     def __contains__(self, key):
-        return key in self.names
+        return key in self.names or (self.parent and key in self.parent)
 
     def declare(self, name: str, value: Type = TUndefined(), label = set()):
         value.label = value.label.union(label)
@@ -386,9 +389,6 @@ class GlobalScope(Scope):
             print(m.current_pc_level, *map(lambda v: v.lbl_str(), args))
 
         self.declare('labelPrint', BuiltinFunction(print_label, pass_monitor=True))
-
-    def string(self):
-        return TString('function () { /* code */ }')
 
 
 class _LocalVarCollector(NodeVisitor):
@@ -426,7 +426,8 @@ def is_falsy(e: Expr):
 
 
 class ExpressionEvaluator(NodeVisitor):
-    def __init__(self, scope: Scope, monitor: Monitor = Monitor()):
+    def __init__(self, scope: Scope, monitor: Optional[Monitor] = None):
+        self.monitor = monitor or Monitor()
         self.scope = scope
         self.monitor = monitor
 
@@ -607,12 +608,12 @@ class _CodeCompiler(NodeVisitor):
 
 
 class Interpreter:
-    def __init__(self, code: Sequence[Code], scope: Scope, monitor: Monitor = Monitor()):
+    def __init__(self, code: Sequence[Code], scope: Scope, monitor: Optional[Monitor] = None):
         self.code = code
         self.scope = scope
         self.pc = 0
-        self.monitor = monitor
-        self.evaluator = ExpressionEvaluator(self.scope, monitor)
+        self.monitor = monitor or Monitor()
+        self.evaluator = ExpressionEvaluator(self.scope, self.monitor)
         self.return_value = None
 
     def step(self):
