@@ -25,3 +25,10 @@ You can use `runner.py` to run the sample scripts in `samples/`. It can also be 
 x = 5;
 print(x);
 ```
+
+
+## Challenges
+The main gola of this project is having some challenges to overcome different levels of information flow control.
+To run them, follow the steps in installation and then go to the `challenges` directory.
+Each of its subdirectories contains a challenge which you can run if the virtualenv is active.
+A solution is provided along with each challenge.
