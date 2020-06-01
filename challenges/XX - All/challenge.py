@@ -11,13 +11,12 @@ def setup(s: ms.Scope):
     s['labelPrint'] = g['labelPrint']
 
 #, ms.ReturnRule
-class ChallengeMonitor(ms.BlockAndLoopRule, ms.LiteralRule, ms.ArithmeticOpRule, ms.UnaryOperatorRule, ms.AssignRule, ms.BaseMonitor):
+class ChallengeMonitor(ms.BlockLoopReturnRule, ms.LiteralRule, ms.ArithmeticOpRule, ms.UnaryOperatorRule, ms.AssignRule, ms.BaseMonitor):
     pass
 
 if __name__ == '__main__':
     default_main(
-        Challenge(name='extract boolean',
-                  challenge=[('h', 'l', lambda: ms.TBoolean(random.choice((True, False)), label={'high'}))],
+        Challenge(name='final challenge',
+                  challenge=[('h', 'l', lambda: ms.TBoolean(random.randint(1, 1000000007), label={'high'}))],
                   monitor=ChallengeMonitor,
-                  setup=setup,
-                  nruns=8))
+                  setup=setup))
