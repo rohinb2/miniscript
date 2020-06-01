@@ -126,3 +126,35 @@ class TestInterpreter:
         assert 'x' not in s
         assert s['y'] == TNumber(86)
         assert s['z'] == TNumber(44)
+
+    def test_label(self):
+        s = GlobalScope()
+        code = compile(parse("x = label(5, 42); y = label(5, 43);"))
+        interpreter = Interpreter(code, s)
+        interpreter.run(100)
+        assert s['x'] == s['y']
+
+        s2 = GlobalScope()
+        code2 = compile(parse("x = label(5, 42); y = label(6, 43); z = x + y;"))
+        interpreter2 = Interpreter(code2, s2)
+        interpreter2.run(100)
+        assert s2['z'] == TNumber(11)
+
+        s3 = GlobalScope()
+        code3 = compile(parse("x = label(3, 100); y = 0; if(x < 5) {y = 100;}"))
+        interpreter3 = Interpreter(code3, s3)
+        try:
+            interpreter3.run(100)
+        except FlowControlError:
+            print("Handled expected error")
+        assert s3['y'] == TNumber(0)
+
+        s4 = GlobalScope()
+        code4 = compile(parse("x = label(1, 100); y = 0; while(x) {y = 1; x = 0;}"))
+        interpreter4 = Interpreter(code4, s4)
+        try:
+            interpreter4.run(100)
+        except FlowControlError:
+            print("Handled expected error")
+        assert s4['y'] == TNumber(0)
+        assert s4['x'] == TNumber(1)
